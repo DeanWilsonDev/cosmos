@@ -1,9 +1,15 @@
 # lustre
 
+Lustre is the actively developed prototype on the `proto` branch of
+[`cosmos`](https://github.com/DeanWilsonDev/cosmos), renamed from `lustre`.
+Its original Git history is preserved. `main` is a README-only starting point
+for the future canonical Cosmos implementation. Existing Lustre names, file
+extensions and build targets are retained on this branch.
+
 > **Status:** Core parser/resolver and an editor LSP exist; runtime hot-reload wiring
 > into Iris is still design-phase (see `docs/lustre_handoff.md` §7's open questions).
 
-Lustre is the styling and animation layer for [Iris](https://github.com/DeanWilsonDev/iris).
+Lustre is the styling and animation layer for [Iris](https://github.com/DeanWilsonDev/chaos/tree/proto).
 Where `.iris`/`.irisx` files define structure (component composition, the `render { }` element
 tree), `.lustre` files are the sole authoring surface for appearance — colors, layout-adjacent
 visual properties, transitions — resolved down to concrete values per rendering backend.
