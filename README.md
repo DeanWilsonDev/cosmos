@@ -50,8 +50,10 @@ that design happens, and where the resulting compiler/resolver will eventually l
 
 ## Build
 
-Requires CMake 3.24+ and a C++23 compiler. Submodules (`libs/cimmerian`, `libs/amanuensis`)
-must be checked out first if you haven't already:
+Requires CMake 3.30+ and a C++26 compiler: GCC 14+, Clang 18+, or a recent AppleClang.
+On Windows, use clang-cl from Clang 18+; MSVC's cl.exe isn't supported.
+Submodules (`libs/cimmerian`, `libs/amanuensis`) must be checked out first if you haven't
+already:
 
 ```sh
 git submodule update --init --recursive

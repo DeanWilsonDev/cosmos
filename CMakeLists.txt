@@ -1,11 +1,16 @@
-cmake_minimum_required(VERSION 3.24)
+cmake_minimum_required(VERSION 3.30)
 
 project(Lustre
     VERSION 0.1.0
     DESCRIPTION "Lustre — styling and animation layer for Iris"
     LANGUAGES CXX)
 
-set(CMAKE_CXX_STANDARD 23)
+if((CMAKE_CXX_COMPILER_ID STREQUAL "GNU" AND CMAKE_CXX_COMPILER_VERSION VERSION_LESS 14)
+   OR (CMAKE_CXX_COMPILER_ID STREQUAL "Clang" AND CMAKE_CXX_COMPILER_VERSION VERSION_LESS 18))
+  message(FATAL_ERROR "Lustre needs GCC 14 or later or Clang 18 or later; found ${CMAKE_CXX_COMPILER_ID} ${CMAKE_CXX_COMPILER_VERSION}")
+endif()
+
+set(CMAKE_CXX_STANDARD 26)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
@@ -57,7 +62,7 @@ add_library(lustre STATIC
     src/Lustre/Resolver.cpp)
 
 target_include_directories(lustre PUBLIC include)
-target_compile_features(lustre PUBLIC cxx_std_23)
+target_compile_features(lustre PUBLIC cxx_std_26)
 
 # ---------------------------------------------------------------------------
 # lustre-lsp — stdio LSP server for `.lustre` files (docs/lustre_lsp_decision.md).
