@@ -50,8 +50,8 @@ that design happens, and where the resulting compiler/resolver will eventually l
 
 ## Build
 
-Requires CMake 3.30+ and a C++26 compiler: GCC 14+, Clang 18+, or a recent AppleClang.
-On Windows, use clang-cl from Clang 18+; MSVC's cl.exe isn't supported.
+Requires CMake 3.30+ and a C++26 compiler: GCC 14+, Clang 19+, or a recent AppleClang.
+On Windows, use clang-cl from Clang 19+; MSVC's cl.exe isn't supported.
 Submodules (`libs/cimmerian`, `libs/amanuensis`) must be checked out first if you haven't
 already:
 
