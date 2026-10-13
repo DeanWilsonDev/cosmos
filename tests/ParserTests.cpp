@@ -162,4 +162,16 @@ DESCRIBE("Parser", {
         ASSERT_TRUE(Bar.StartingDeclarations.empty());
         ASSERT_EQUAL(Bar.Declarations.size(), static_cast<std::size_t>(1));
     });
+
+    IT("parses attr(name) into an AttrRef", {
+        Parser TheParser(".bar { flex-grow: attr(fill); }", "test.lustre");
+        const ParseResult Result = TheParser.Parse();
+
+        ASSERT_TRUE(Result.Errors.empty());
+        REQUIRE_TRUE(Result.Sheet.has_value());
+        const std::vector<ValuePart>& Values = Result.Sheet->Rules[0]->Declarations[0].Values;
+        REQUIRE_EQUAL(Values.size(), static_cast<std::size_t>(1));
+        ASSERT_TRUE(Values[0].AttrRef == "fill");
+        ASSERT_FALSE(Values[0].Literal.has_value());
+    });
 });

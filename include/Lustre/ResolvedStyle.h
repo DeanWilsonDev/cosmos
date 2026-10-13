@@ -80,6 +80,17 @@ struct Length {
     friend bool operator==(const Length&, const Length&) = default;
 };
 
+// A property whose value an `attr()` names: the backend reads the element's own prop
+// called Attribute and sets Property from it, as a number in that property's own unit
+// (logical pixels for a length). Lustre can't know the value; it only says where it
+// comes from.
+struct AttrBinding {
+    std::string Property;
+    std::string Attribute;
+
+    friend bool operator==(const AttrBinding&, const AttrBinding&) = default;
+};
+
 struct ResolvedStyle {
     std::optional<Color>       BackgroundColor;
     std::optional<Color>       BackgroundGradientStart;
@@ -124,6 +135,10 @@ struct ResolvedStyle {
 
     std::optional<float> FlexGrow;
     std::optional<float> Opacity; // 0 to 1, the whole element and everything in it
+
+    // The properties set by attr(), which have no value here until the backend reads
+    // the element's props. A property is either bound here or set above, never both.
+    std::vector<AttrBinding> AttrBindings;
     std::optional<Color> ScrollbarThumbColor;
     std::optional<Color> ScrollbarTrackColor;
     std::optional<float> ScrollbarWidthLogical;

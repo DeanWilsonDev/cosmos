@@ -34,6 +34,7 @@ struct ValuePart {
     std::optional<std::string> StringValue;  // "assets/fonts/body.ttf"
     std::optional<std::string> HexColor;     // "#E8593C"
     std::optional<std::string> VariableRef;  // var(--name) -- the "name" part, no fallback (§1.4)
+    std::optional<std::string> AttrRef;      // attr(name) -- the element's own `name` prop, read by the backend
     // Populated alongside Literal when a bare identifier is immediately
     // followed by a parenthesized argument -- v1's only case is
     // `transform: scale(1.5)` (§2), so this holds "1.5" when Literal holds

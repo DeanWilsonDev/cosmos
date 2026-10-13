@@ -141,6 +141,13 @@ ValuePart Parser::ParseValuePart() {
     if (Check(TokenKind::Identifier) || Check(TokenKind::RootKeyword)) {
         std::string Text = Current_.Text;
         Advance();
+        if (Text == "attr" && Match(TokenKind::OpenParen)) {
+            // CSS's attr(), minus a type or fallback: the value of one of the element's
+            // own props, which only the backend knows.
+            Token NameToken = Expect(TokenKind::Identifier, "Expected a prop name inside `attr(...)`.");
+            Expect(TokenKind::CloseParen, "Expected `)` to close `attr(...)`.");
+            return ValuePart{.AttrRef = NameToken.Text};
+        }
         if (Match(TokenKind::OpenParen)) {
             // v1's only function-call value shape: `scale(1.5)` (§2's
             // `transform`), not a general function-call grammar.

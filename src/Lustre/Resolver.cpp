@@ -192,6 +192,33 @@ std::optional<EdgeInsets> ParseEdgeInsets(const std::vector<float>& Lengths) {
     }
 }
 
+// The single-number properties attr() can set, each with the field an earlier, concrete
+// declaration of it would have filled in -- cleared when attr() takes the property over.
+bool ClearAttrBindableProperty(const std::string& Prop, ResolvedStyle& Out) {
+    if (Prop == "width") {
+        Out.Width.reset();
+    } else if (Prop == "height") {
+        Out.Height.reset();
+    } else if (Prop == "min-width") {
+        Out.MinWidth.reset();
+    } else if (Prop == "max-width") {
+        Out.MaxWidth.reset();
+    } else if (Prop == "flex-grow") {
+        Out.FlexGrow.reset();
+    } else if (Prop == "opacity") {
+        Out.Opacity.reset();
+    } else if (Prop == "gap") {
+        Out.Gap.reset();
+    } else if (Prop == "border-width") {
+        Out.BorderWidth.reset();
+    } else if (Prop == "border-radius") {
+        Out.BorderRadius.reset();
+    } else {
+        return false;
+    }
+    return true;
+}
+
 bool IsContainerTag(std::string_view Tag) {
     static const std::unordered_map<std::string_view, bool> kIsContainer{
         {"Frame", true},  {"Grid", true},  {"Scroll", true}, {"Inline", true},
@@ -220,6 +247,21 @@ void ApplyDeclaration(const Declaration& Decl, const VariableScope& Scope, Resol
     }
 
     const std::string& Prop = Decl.Property;
+
+    // A declaration replaces any earlier attr() binding of the same property, as a later
+    // value does in CSS, and an attr() replaces any earlier value.
+    std::erase_if(Out.AttrBindings, [&](const AttrBinding& Binding) { return Binding.Property == Prop; });
+    if (Resolved[0].AttrRef) {
+        if (Resolved.size() != 1 || !ClearAttrBindableProperty(Prop, Out)) {
+            Diagnostics.push_back(ResolveDiagnostic{"`" + Prop + ": attr(" + *Resolved[0].AttrRef +
+                                                      ")` -- attr() sets a single number, and only `width`, "
+                                                      "`height`, `min-width`, `max-width`, `flex-grow`, `opacity`, "
+                                                      "`gap`, `border-width` and `border-radius` take one."});
+            return;
+        }
+        Out.AttrBindings.push_back(AttrBinding{Prop, *Resolved[0].AttrRef});
+        return;
+    }
 
     if (Prop != "margin") {
         for (const auto& V : Resolved) {

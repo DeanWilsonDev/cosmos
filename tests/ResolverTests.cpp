@@ -903,4 +903,68 @@ DESCRIBE("Resolver", {
         REQUIRE_EQUAL(Diagnostics.size(), std::size_t{1});
         ASSERT_TRUE(Diagnostics[0].Message.find("`:hover`") != std::string::npos);
     });
+
+    IT("resolves attr() into a binding, leaving the property itself unset", {
+        const auto Sheet = ParseOrFail(".bar { flex-grow: attr(fill); width: attr(size); }", "test.lustre");
+        REQUIRE_TRUE(Sheet.has_value());
+
+        FakeElement Element("bar", "Frame", nullptr, /*ComponentRoot=*/true);
+        Resolver                       R;
+        std::vector<ResolveDiagnostic> Diagnostics;
+        const ResolvedStyle Style = R.Resolve(Element, StylesheetSet{nullptr, &*Sheet}, false, Diagnostics);
+
+        ASSERT_TRUE(Diagnostics.empty());
+        ASSERT_FALSE(Style.FlexGrow.has_value());
+        ASSERT_FALSE(Style.Width.has_value());
+        REQUIRE_EQUAL(Style.AttrBindings.size(), static_cast<std::size_t>(2));
+        ASSERT_TRUE(Style.AttrBindings[0] == (AttrBinding{"flex-grow", "fill"}));
+        ASSERT_TRUE(Style.AttrBindings[1] == (AttrBinding{"width", "size"}));
+    });
+
+    IT("lets a later value replace an attr() binding, and a later attr() replace a value", {
+        const auto Sheet = ParseOrFail(R"(
+.bar { flex-grow: attr(fill); opacity: 0.5; }
+.bar-fixed { flex-grow: 3; opacity: attr(alpha); }
+)", "test.lustre");
+        REQUIRE_TRUE(Sheet.has_value());
+
+        FakeElement Element("bar bar-fixed", "Frame", nullptr, /*ComponentRoot=*/true);
+        Resolver                       R;
+        std::vector<ResolveDiagnostic> Diagnostics;
+        const ResolvedStyle Style = R.Resolve(Element, StylesheetSet{nullptr, &*Sheet}, false, Diagnostics);
+
+        ASSERT_TRUE(Style.FlexGrow == 3.0F);
+        ASSERT_FALSE(Style.Opacity.has_value());
+        REQUIRE_EQUAL(Style.AttrBindings.size(), static_cast<std::size_t>(1));
+        ASSERT_TRUE(Style.AttrBindings[0] == (AttrBinding{"opacity", "alpha"}));
+    });
+
+    IT("diagnoses attr() on a property that doesn't take a single number", {
+        const auto Sheet = ParseOrFail(".bar { background-color: attr(tint); }", "test.lustre");
+        REQUIRE_TRUE(Sheet.has_value());
+
+        FakeElement Element("bar", "Frame", nullptr, /*ComponentRoot=*/true);
+        Resolver                       R;
+        std::vector<ResolveDiagnostic> Diagnostics;
+        const ResolvedStyle Style = R.Resolve(Element, StylesheetSet{nullptr, &*Sheet}, false, Diagnostics);
+
+        ASSERT_TRUE(Style.AttrBindings.empty());
+        REQUIRE_EQUAL(Diagnostics.size(), std::size_t{1});
+        ASSERT_TRUE(Diagnostics[0].Message.find("background-color: attr(tint)") != std::string::npos);
+    });
+
+    IT("binds attr() inside @starting-style onto the Starting overlay", {
+        const auto Sheet =
+            ParseOrFail(".bar { flex-grow: attr(fill); @starting-style { flex-grow: attr(from); } }", "test.lustre");
+        REQUIRE_TRUE(Sheet.has_value());
+
+        FakeElement Element("bar", "Frame", nullptr, /*ComponentRoot=*/true);
+        Resolver                       R;
+        std::vector<ResolveDiagnostic> Diagnostics;
+        const ResolvedStyle Style = R.Resolve(Element, StylesheetSet{nullptr, &*Sheet}, false, Diagnostics);
+
+        REQUIRE_TRUE(Style.Starting != nullptr);
+        REQUIRE_EQUAL(Style.Starting->AttrBindings.size(), static_cast<std::size_t>(1));
+        ASSERT_TRUE(Style.Starting->AttrBindings[0] == (AttrBinding{"flex-grow", "from"}));
+    });
 });
