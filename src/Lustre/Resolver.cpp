@@ -125,6 +125,29 @@ std::optional<float> ParseSeconds(const ValuePart& Part) {
     return Unit == "ms" ? Value / 1000.0F : Value;
 }
 
+// A fraction from a plain number (0.3) or a percentage (30%), clamped to 0..1.
+std::optional<float> ParseFraction(const ValuePart& Part) {
+    if (!Part.Number) {
+        return std::nullopt;
+    }
+    float             Value = 0.0F;
+    const std::string Unit  = StripUnitSuffix(*Part.Number, Value);
+    if (!Unit.empty() && Unit != "%") {
+        return std::nullopt;
+    }
+    return std::clamp(Unit == "%" ? Value / 100.0F : Value, 0.0F, 1.0F);
+}
+
+// Degrees, written `3deg` or as a plain number.
+std::optional<float> ParseDegrees(const ValuePart& Part) {
+    if (!Part.Number) {
+        return std::nullopt;
+    }
+    float             Value = 0.0F;
+    const std::string Unit  = StripUnitSuffix(*Part.Number, Value);
+    return Unit.empty() || Unit == "deg" ? std::optional<float>(Value) : std::nullopt;
+}
+
 std::optional<Easing> ParseEasing(std::string_view Keyword) {
     static const std::unordered_map<std::string_view, Easing> kEasings{{"linear", Easing::Linear},
                                                                        {"ease", Easing::Ease},
@@ -222,7 +245,9 @@ bool ClearAttrBindableProperty(const std::string& Prop, ResolvedStyle& Out) {
 bool IsContainerTag(std::string_view Tag) {
     static const std::unordered_map<std::string_view, bool> kIsContainer{
         {"Frame", true},  {"Grid", true},  {"Scroll", true}, {"Inline", true},
-        {"Image", false}, {"Text", false}, {"Input", false}, {"TextArea", false}};
+        {"Image", false}, {"Text", false}, {"Input", false}, {"TextArea", false},
+        // A chart's children are its data, not boxes for it to lay out.
+        {"BarChart", false}, {"LineChart", false}, {"DonutChart", false}, {"Series", false}, {"Slice", false}};
     auto It = kIsContainer.find(Tag);
     return It == kIsContainer.end() || It->second;
 }
@@ -442,6 +467,46 @@ void ApplyDeclaration(const Declaration& Decl, const VariableScope& Scope, Resol
         }
         std::erase_if(List, [](const Transition& Entry) { return Entry.Property.empty(); });
         Out.Transitions = std::move(List);
+    } else if (Prop == "axis-color") {
+        Out.Chart.AxisColor = ParseColor(Resolved[0]);
+    } else if (Prop == "axis-width") {
+        Out.Chart.AxisWidth = ParsePixels(Resolved[0], Prop, Diagnostics);
+    } else if (Prop == "grid-color") {
+        Out.Chart.GridColor = ParseColor(Resolved[0]);
+    } else if (Prop == "grid-width") {
+        Out.Chart.GridWidth = ParsePixels(Resolved[0], Prop, Diagnostics);
+    } else if (Prop == "hover-color") {
+        Out.Chart.HoverColor = ParseColor(Resolved[0]);
+    } else if (Prop == "tick-spacing") {
+        Out.Chart.TickSpacing = ParsePixels(Resolved[0], Prop, Diagnostics);
+    } else if (Prop == "label-gap") {
+        Out.Chart.LabelGap = ParsePixels(Resolved[0], Prop, Diagnostics);
+    } else if (Prop == "line-width") {
+        Out.Chart.LineWidth = ParsePixels(Resolved[0], Prop, Diagnostics);
+    } else if (Prop == "point-radius") {
+        Out.Chart.PointRadius = ParsePixels(Resolved[0], Prop, Diagnostics);
+    } else if (Prop == "hover-point-radius") {
+        Out.Chart.HoverPointRadius = ParsePixels(Resolved[0], Prop, Diagnostics);
+    } else if (Prop == "area-opacity" || Prop == "bar-gap") {
+        const std::optional<float> Fraction = ParseFraction(Resolved[0]);
+        if (!Fraction) {
+            Diagnostics.push_back(ResolveDiagnostic{"`" + Prop + "` takes a number from 0 to 1, or a percentage."});
+            return;
+        }
+        (Prop == "area-opacity" ? Out.Chart.AreaOpacity : Out.Chart.BarGap) = Fraction;
+    } else if (Prop == "bar-radius") {
+        Out.Chart.BarRadius = ParsePixels(Resolved[0], Prop, Diagnostics);
+    } else if (Prop == "donut-thickness") {
+        Out.Chart.DonutThickness = ParsePixels(Resolved[0], Prop, Diagnostics);
+    } else if (Prop == "segment-gap") {
+        Out.Chart.SegmentGap = ParseDegrees(Resolved[0]);
+        if (!Out.Chart.SegmentGap) {
+            Diagnostics.push_back(ResolveDiagnostic{"`segment-gap` takes an angle, like `3deg`."});
+        }
+    } else if (Prop == "appear-duration") {
+        Out.Chart.AppearSeconds = ParseSeconds(Resolved[0]);
+    } else if (Prop == "change-duration") {
+        Out.Chart.ChangeSeconds = ParseSeconds(Resolved[0]);
     } else if (Prop == "opacity") {
         float             Value = 0.0F;
         const std::string Unit  = Resolved[0].Number ? StripUnitSuffix(*Resolved[0].Number, Value) : std::string{};
@@ -677,7 +742,9 @@ ResolvedStyle ResolveStyle(const IStyleTarget& Target, const StylesheetSet& Shee
 std::string_view PrimitiveTagForSelector(std::string_view LustreSelectorName) {
     static const std::unordered_map<std::string_view, std::string_view> kMapping{
         {"frame", "Frame"}, {"inline", "Inline"}, {"grid", "Grid"},   {"image", "Image"},
-        {"text", "Text"},   {"scroll", "Scroll"}, {"input", "Input"}, {"textarea", "TextArea"}};
+        {"text", "Text"},   {"scroll", "Scroll"}, {"input", "Input"}, {"textarea", "TextArea"},
+        {"barchart", "BarChart"}, {"linechart", "LineChart"}, {"donutchart", "DonutChart"},
+        {"series", "Series"},     {"slice", "Slice"}};
     auto It = kMapping.find(LustreSelectorName);
     return It == kMapping.end() ? std::string_view{} : It->second;
 }

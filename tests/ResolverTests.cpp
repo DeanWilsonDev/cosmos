@@ -967,4 +967,65 @@ DESCRIBE("Resolver", {
         REQUIRE_EQUAL(Style.Starting->AttrBindings.size(), static_cast<std::size_t>(1));
         ASSERT_TRUE(Style.Starting->AttrBindings[0] == (AttrBinding{"flex-grow", "from"}));
     });
+
+    IT("resolves the chart properties into ResolvedStyle::Chart", {
+        const auto Sheet = ParseOrFail(R"(
+.weekly {
+    color: #888888;
+    axis-color: #999999;
+    axis-width: 1px;
+    grid-color: #333333;
+    grid-width: 1px;
+    hover-color: #FFFFFF22;
+    tick-spacing: 28px;
+    label-gap: 6px;
+    line-width: 2px;
+    point-radius: 2.5px;
+    hover-point-radius: 4px;
+    area-opacity: 25%;
+    bar-gap: 0.3;
+    bar-radius: 2px;
+    donut-thickness: 18px;
+    segment-gap: 3deg;
+    appear-duration: 0.6s;
+    change-duration: 400ms;
+}
+)", "test.lustre");
+        REQUIRE_TRUE(Sheet.has_value());
+
+        FakeElement Element("weekly", "BarChart", nullptr, /*ComponentRoot=*/true);
+        Resolver                       R;
+        std::vector<ResolveDiagnostic> Diagnostics;
+        const ResolvedStyle Style = R.Resolve(Element, StylesheetSet{nullptr, &*Sheet}, false, Diagnostics);
+
+        ASSERT_TRUE(Diagnostics.empty());
+        const ChartProperties& Chart = Style.Chart;
+        ASSERT_TRUE(Chart.AxisColor == (Color{0x99, 0x99, 0x99, 0xFF}));
+        ASSERT_TRUE(Chart.HoverColor == (Color{0xFF, 0xFF, 0xFF, 0x22}));
+        ASSERT_TRUE(Chart.AxisWidth == 1.0F && Chart.GridWidth == 1.0F && Chart.TickSpacing == 28.0F);
+        ASSERT_TRUE(Chart.LabelGap == 6.0F && Chart.LineWidth == 2.0F && Chart.PointRadius == 2.5F);
+        ASSERT_TRUE(Chart.HoverPointRadius == 4.0F && Chart.BarRadius == 2.0F && Chart.DonutThickness == 18.0F);
+        ASSERT_TRUE(Chart.AreaOpacity == 0.25F && Chart.BarGap == 0.3F && Chart.SegmentGap == 3.0F);
+        ASSERT_TRUE(Chart.AppearSeconds == 0.6F && Chart.ChangeSeconds == 0.4F);
+    });
+
+    IT("matches chart primitive selectors and diagnoses a bad fraction or angle", {
+        const auto Sheet = ParseOrFail(R"(
+series { color: #6193FF; }
+.weekly { bar-gap: 4px; segment-gap: 2px; }
+)", "test.lustre");
+        REQUIRE_TRUE(Sheet.has_value());
+
+        FakeElement Chart("weekly", "BarChart", nullptr, /*ComponentRoot=*/true);
+        FakeElement Series("", "Series", &Chart);
+        Resolver                       R;
+        std::vector<ResolveDiagnostic> Diagnostics;
+        ASSERT_TRUE(R.Resolve(Series, StylesheetSet{nullptr, &*Sheet}, false, Diagnostics).TextColor ==
+                    (Color{0x61, 0x93, 0xFF, 0xFF}));
+
+        const ResolvedStyle Style = R.Resolve(Chart, StylesheetSet{nullptr, &*Sheet}, false, Diagnostics);
+        ASSERT_FALSE(Style.Chart.BarGap.has_value());
+        ASSERT_FALSE(Style.Chart.SegmentGap.has_value());
+        ASSERT_EQUAL(Diagnostics.size(), std::size_t{2});
+    });
 });

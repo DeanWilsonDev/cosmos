@@ -91,6 +91,31 @@ struct AttrBinding {
     friend bool operator==(const AttrBinding&, const AttrBinding&) = default;
 };
 
+// The chart properties, read only by the chart primitives (<BarChart>, <LineChart>,
+// <DonutChart>). Lengths are logical pixels; AreaOpacity and BarGap are fractions;
+// SegmentGap is degrees. A series' or slice's own colour is its ordinary `color`.
+struct ChartProperties {
+    std::optional<Color> AxisColor;        // axis-color: the baseline
+    std::optional<float> AxisWidth;        // axis-width
+    std::optional<Color> GridColor;        // grid-color: one line per value tick
+    std::optional<float> GridWidth;        // grid-width
+    std::optional<Color> HoverColor;       // hover-color: behind or over the hovered entry
+    std::optional<float> TickSpacing;      // tick-spacing: the least distance between ticks
+    std::optional<float> LabelGap;         // label-gap
+    std::optional<float> LineWidth;        // line-width: a line chart's lines
+    std::optional<float> PointRadius;      // point-radius
+    std::optional<float> HoverPointRadius; // hover-point-radius
+    std::optional<float> AreaOpacity;      // area-opacity: the fill under a line
+    std::optional<float> BarGap;           // bar-gap: the share of a category's band left empty
+    std::optional<float> BarRadius;        // bar-radius
+    std::optional<float> DonutThickness;   // donut-thickness: 0 is a pie
+    std::optional<float> SegmentGap;       // segment-gap: between slices, in degrees
+    std::optional<float> AppearSeconds;    // appear-duration: growing in when shown
+    std::optional<float> ChangeSeconds;    // change-duration: easing to new data
+
+    friend bool operator==(const ChartProperties&, const ChartProperties&) = default;
+};
+
 struct ResolvedStyle {
     std::optional<Color>       BackgroundColor;
     std::optional<Color>       BackgroundGradientStart;
@@ -139,6 +164,8 @@ struct ResolvedStyle {
     // The properties set by attr(), which have no value here until the backend reads
     // the element's props. A property is either bound here or set above, never both.
     std::vector<AttrBinding> AttrBindings;
+
+    ChartProperties Chart;
     std::optional<Color> ScrollbarThumbColor;
     std::optional<Color> ScrollbarTrackColor;
     std::optional<float> ScrollbarWidthLogical;

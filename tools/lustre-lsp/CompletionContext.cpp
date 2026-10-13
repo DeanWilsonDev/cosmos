@@ -141,11 +141,18 @@ const std::vector<std::string_view> kPropertyNames{
     "max-width",        "text-overflow",               "white-space",
     "transform",        "transition",                  "flex-grow",
     "scrollbar-color",  "scrollbar-width",             "font-style",
-    "text-decoration",  "opacity",
+    "text-decoration",  "opacity",                     "axis-color",
+    "axis-width",       "grid-color",                  "grid-width",
+    "hover-color",      "tick-spacing",                "label-gap",
+    "line-width",       "point-radius",                "hover-point-radius",
+    "area-opacity",     "bar-gap",                     "bar-radius",
+    "donut-thickness",  "segment-gap",                 "appear-duration",
+    "change-duration",
 };
 
 const std::vector<std::string_view> kPrimitiveSelectorNames{
-    "frame", "inline", "grid", "image", "text", "scroll", "input", "textarea",
+    "frame",    "inline",   "grid",      "image",      "text",   "scroll", "input",
+    "textarea", "barchart", "linechart", "donutchart", "series", "slice",
 };
 
 const std::vector<std::string_view> kPseudoClassNames{
