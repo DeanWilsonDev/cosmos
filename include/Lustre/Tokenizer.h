@@ -32,6 +32,7 @@ private:
     Token LexIdentifierLike();   // identifier, var/root keywords
     Token LexClassName();        // .foo
     Token LexPseudoClass();      // :hover  (vs. lone ':' before a value)
+    Token LexAtKeyword();        // @starting-style
     Token LexVariableName();     // --foo
     Token LexNumber();           // 16px, 0.2s, 100%, 1.5
     Token LexStringLiteral();    // "..."

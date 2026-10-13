@@ -4,6 +4,7 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <vector>
 
 namespace Lustre {
 
@@ -37,11 +38,18 @@ struct FontRequest {
     friend bool operator==(const FontRequest&, const FontRequest&) = default;
 };
 
-struct ColorTransition {
+// CSS's easing keywords. Ease, CSS's default, starts briskly and settles gently.
+enum class Easing { Linear, Ease, EaseIn, EaseOut, EaseInOut };
+
+// One entry of a `transition` list: the property it eases, as written ("flex-grow",
+// "background-color", "all", ...), over how long, along which curve. Which properties a
+// backend can actually ease is the backend's business; Lustre keeps whatever was named.
+struct Transition {
     std::string Property;
     float       DurationSeconds{0.0F};
+    Easing      Curve{Easing::Ease};
 
-    friend bool operator==(const ColorTransition&, const ColorTransition&) = default;
+    friend bool operator==(const Transition&, const Transition&) = default;
 };
 
 enum class Display { Stack, Inline };
@@ -90,13 +98,18 @@ struct ResolvedStyle {
     std::optional<float>         Gap;
     std::optional<Align>         AlignItems;
     std::optional<Justify>       JustifyContent;
-    std::optional<ColorTransition> Transition;
+    std::vector<Transition>        Transitions; // a later `transition` declaration replaces the whole list
     std::optional<Color> ShadowColor;
     std::optional<float> ShadowBlurRadiusLogical;
 
     std::shared_ptr<ResolvedStyle> Hover;
     std::shared_ptr<ResolvedStyle> Active;
     std::shared_ptr<ResolvedStyle> Disabled;
+
+    // From `@starting-style { }` blocks: the values an element starts from when it
+    // appears, overriding its own for the properties set here, so its transitions ease
+    // it in. Null when no rule that matched it has one.
+    std::shared_ptr<ResolvedStyle> Starting;
 
     std::optional<Length> Width;
     std::optional<Length> Height;
@@ -110,6 +123,7 @@ struct ResolvedStyle {
     std::optional<TextDecoration> TextDecorationLine;
 
     std::optional<float> FlexGrow;
+    std::optional<float> Opacity; // 0 to 1, the whole element and everything in it
     std::optional<Color> ScrollbarThumbColor;
     std::optional<Color> ScrollbarTrackColor;
     std::optional<float> ScrollbarWidthLogical;

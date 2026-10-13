@@ -122,4 +122,44 @@ DESCRIBE("Parser", {
         ASSERT_TRUE(Frame.Declarations[0].Values[0].Literal == "scale");
         ASSERT_TRUE(Frame.Declarations[0].Values[0].CallArgument == "1.5");
     });
+
+    IT("marks the values that follow a comma", {
+        Parser TheParser(".bar { transition: width 0.2s, height 0.4s; }", "test.lustre");
+        const ParseResult Result = TheParser.Parse();
+
+        ASSERT_TRUE(Result.Errors.empty());
+        REQUIRE_TRUE(Result.Sheet.has_value());
+        const std::vector<ValuePart>& Values = Result.Sheet->Rules[0]->Declarations[0].Values;
+        REQUIRE_EQUAL(Values.size(), static_cast<std::size_t>(4));
+        ASSERT_FALSE(Values[0].FollowsComma);
+        ASSERT_FALSE(Values[1].FollowsComma);
+        ASSERT_TRUE(Values[2].FollowsComma);
+        ASSERT_FALSE(Values[3].FollowsComma);
+    });
+
+    IT("parses a nested @starting-style block onto its rule, not as a nested rule", {
+        Parser TheParser(".bar { flex-grow: 60; @starting-style { flex-grow: 0; opacity: 0; } }", "test.lustre");
+        const ParseResult Result = TheParser.Parse();
+
+        ASSERT_TRUE(Result.Errors.empty());
+        REQUIRE_TRUE(Result.Sheet.has_value());
+        const Rule& Bar = *Result.Sheet->Rules[0];
+        ASSERT_EQUAL(Bar.Declarations.size(), static_cast<std::size_t>(1));
+        ASSERT_TRUE(Bar.NestedRules.empty());
+        REQUIRE_EQUAL(Bar.StartingDeclarations.size(), static_cast<std::size_t>(2));
+        ASSERT_TRUE(Bar.StartingDeclarations[0].Property == "flex-grow");
+        ASSERT_TRUE(Bar.StartingDeclarations[1].Property == "opacity");
+    });
+
+    IT("reports an unknown at-rule and keeps parsing", {
+        Parser TheParser(".bar { @keyframes { width: 0px; } color: #FFFFFF; }", "test.lustre");
+        const ParseResult Result = TheParser.Parse();
+
+        REQUIRE_EQUAL(Result.Errors.size(), static_cast<std::size_t>(1));
+        ASSERT_TRUE(Result.Errors[0].Message.find("Unknown at-rule `@keyframes`") != std::string::npos);
+        REQUIRE_TRUE(Result.Sheet.has_value());
+        const Rule& Bar = *Result.Sheet->Rules[0];
+        ASSERT_TRUE(Bar.StartingDeclarations.empty());
+        ASSERT_EQUAL(Bar.Declarations.size(), static_cast<std::size_t>(1));
+    });
 });

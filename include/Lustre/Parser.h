@@ -44,6 +44,7 @@ private:
     std::optional<RootBlock> TryParseRootBlock();
     RulePtr                  ParseRule(int Depth = 0);
     void                     ParseRuleBody(Rule& Target, int ChildDepth);
+    void                     ParseStartingStyle(Rule& Target);
     Declaration               ParseDeclaration(const Token& PropertyToken);
     VariableDeclaration       ParseVariableDeclaration(const Token& NameToken);
     std::vector<ValuePart>    ParseValueList();

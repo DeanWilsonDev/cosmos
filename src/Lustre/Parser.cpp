@@ -157,11 +157,15 @@ ValuePart Parser::ParseValuePart() {
 
 std::vector<ValuePart> Parser::ParseValueList() {
     std::vector<ValuePart> Values;
+    bool                   AfterComma = false;
     while (!Check(TokenKind::Semicolon) && !Check(TokenKind::CloseBrace) && !Check(TokenKind::EndOfFile)) {
         if (Match(TokenKind::Comma)) {
+            AfterComma = true;
             continue;
         }
         Values.push_back(ParseValuePart());
+        Values.back().FollowsComma = AfterComma;
+        AfterComma                 = false;
     }
     return Values;
 }
@@ -201,6 +205,10 @@ void Parser::ParseRuleBody(Rule& Target, int ChildDepth) {
             }
             continue;
         }
+        if (Check(TokenKind::AtKeyword)) {
+            ParseStartingStyle(Target);
+            continue;
+        }
         if (Check(TokenKind::Identifier)) {
             // Lookahead: `ident:` is a declaration; `ident{`/`ident:pseudo{`
             // is a nested primitive-selector rule.
@@ -224,6 +232,32 @@ void Parser::ParseRuleBody(Rule& Target, int ChildDepth) {
         Advance();
     }
     Expect(TokenKind::CloseBrace, "Expected `}` to close the rule body.");
+}
+
+void Parser::ParseStartingStyle(Rule& Target) {
+    const Token AtToken = Current_;
+    Advance();
+    if (AtToken.Text != "starting-style") {
+        Errors_.push_back(ParseError{"Unknown at-rule `@" + AtToken.Text + "` -- the only one is `@starting-style`.",
+                                     AtToken.Location});
+    }
+    Expect(TokenKind::OpenBrace, "Expected `{` after `@" + AtToken.Text + "`.");
+    while (!Check(TokenKind::CloseBrace) && !Check(TokenKind::EndOfFile)) {
+        if (Check(TokenKind::Identifier) && Peek_.Kind == TokenKind::Colon) {
+            Token PropertyToken = Current_;
+            Advance();
+            Declaration Decl = ParseDeclaration(PropertyToken);
+            if (AtToken.Text == "starting-style") {
+                Target.StartingDeclarations.push_back(std::move(Decl));
+            }
+            continue;
+        }
+        Errors_.push_back(ParseError{"Expected a declaration inside `@" + AtToken.Text + " { }` -- it holds "
+                                     "property values only, no nested rules or variables.",
+                                     Current_.Location});
+        Advance();
+    }
+    Expect(TokenKind::CloseBrace, "Expected `}` to close `@" + AtToken.Text + " { }`.");
 }
 
 RulePtr Parser::ParseRule(int Depth) {

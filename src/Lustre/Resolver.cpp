@@ -120,13 +120,19 @@ std::optional<float> ParseSeconds(const ValuePart& Part) {
     if (!Part.Number) {
         return std::nullopt;
     }
-    std::string_view Text = *Part.Number;
-    if (!Text.empty() && Text.back() == 's') {
-        Text.remove_suffix(1);
-    }
-    float Value = 0.0F;
-    std::from_chars(Text.data(), Text.data() + Text.size(), Value);
-    return Value;
+    float             Value = 0.0F;
+    const std::string Unit  = StripUnitSuffix(*Part.Number, Value);
+    return Unit == "ms" ? Value / 1000.0F : Value;
+}
+
+std::optional<Easing> ParseEasing(std::string_view Keyword) {
+    static const std::unordered_map<std::string_view, Easing> kEasings{{"linear", Easing::Linear},
+                                                                       {"ease", Easing::Ease},
+                                                                       {"ease-in", Easing::EaseIn},
+                                                                       {"ease-out", Easing::EaseOut},
+                                                                       {"ease-in-out", Easing::EaseInOut}};
+    auto It = kEasings.find(Keyword);
+    return It == kEasings.end() ? std::nullopt : std::optional<Easing>(It->second);
 }
 
 std::optional<Color> ParseColor(const ValuePart& Part) {
@@ -206,6 +212,7 @@ void ApplyDeclaration(const Declaration& Decl, const VariableScope& Scope, Resol
     for (const auto& Raw : Decl.Values) {
         if (const ValuePart* R = ResolveVariableRef(Raw, Scope, Diagnostics)) {
             Resolved.push_back(*R);
+            Resolved.back().FollowsComma = Raw.FollowsComma; // where the comma was, not the variable's
         }
     }
     if (Resolved.empty()) {
@@ -373,17 +380,34 @@ void ApplyDeclaration(const Declaration& Decl, const VariableScope& Scope, Resol
             Out.TransformScale = Value;
         }
     } else if (Prop == "transition") {
-        ColorTransition Transition;
+        // CSS's shorthand without a delay: a comma-separated list of
+        // `<property> <duration> [<easing>]`, in any order within an entry.
+        std::vector<Transition> List;
         for (const auto& V : Resolved) {
+            if (List.empty() || V.FollowsComma) {
+                List.emplace_back();
+            }
+            Transition& Entry = List.back();
             if (V.Literal) {
-                Transition.Property = *V.Literal;
-            } else if (auto Seconds = ParseSeconds(V)) {
-                Transition.DurationSeconds = *Seconds;
+                if (const std::optional<Easing> Curve = ParseEasing(*V.Literal)) {
+                    Entry.Curve = *Curve;
+                } else {
+                    Entry.Property = *V.Literal;
+                }
+            } else if (const std::optional<float> Seconds = ParseSeconds(V)) {
+                Entry.DurationSeconds = *Seconds;
             }
         }
-        if (!Transition.Property.empty()) {
-            Out.Transition = Transition;
+        std::erase_if(List, [](const Transition& Entry) { return Entry.Property.empty(); });
+        Out.Transitions = std::move(List);
+    } else if (Prop == "opacity") {
+        float             Value = 0.0F;
+        const std::string Unit  = Resolved[0].Number ? StripUnitSuffix(*Resolved[0].Number, Value) : std::string{};
+        if (!Resolved[0].Number || (!Unit.empty() && Unit != "%")) {
+            Diagnostics.push_back(ResolveDiagnostic{"`opacity` takes a number from 0 to 1, or a percentage."});
+            return;
         }
+        Out.Opacity = std::clamp(Unit == "%" ? Value / 100.0F : Value, 0.0F, 1.0F);
     }
     // Unknown properties are silently ignored -- v1 does no
     // property-applicability validation (§6, "Deliberately not diagnosed").
@@ -407,6 +431,25 @@ void ApplyRuleDeclarations(const Rule& R, const VariableScope& Scope, ResolvedSt
     ResolvedStyle& Target = R.Pseudo ? OverlayFor(Out, *R.Pseudo) : Out;
     for (const auto& Decl : R.Declarations) {
         ApplyDeclaration(Decl, Scope, Target, TargetTag, Diagnostics);
+    }
+
+    if (R.StartingDeclarations.empty()) {
+        return;
+    }
+    if (R.Pseudo) {
+        // An element appears once, not once per interaction state.
+        Diagnostics.push_back(ResolveDiagnostic{"`@starting-style` has no effect inside a `:" +
+                                                  std::string(R.Pseudo == PseudoKind::Hover    ? "hover"
+                                                              : R.Pseudo == PseudoKind::Active ? "active"
+                                                                                               : "disabled") +
+                                                  "` rule -- put it in the rule for the element itself."});
+        return;
+    }
+    if (!Out.Starting) {
+        Out.Starting = std::make_shared<ResolvedStyle>();
+    }
+    for (const auto& Decl : R.StartingDeclarations) {
+        ApplyDeclaration(Decl, Scope, *Out.Starting, TargetTag, Diagnostics);
     }
 }
 

@@ -77,6 +77,9 @@ Token Tokenizer::NextToken() {
     if (C == ':' && IsIdentStart(PeekChar())) {
         return LexPseudoClass();
     }
+    if (C == '@' && IsIdentStart(PeekChar())) {
+        return LexAtKeyword();
+    }
     if (C == '-' && PeekChar() == '-' && IsIdentStart(PeekChar(2))) {
         return LexVariableName();
     }
@@ -132,6 +135,16 @@ Token Tokenizer::LexClassName() {
         Advance();
     }
     return Token{TokenKind::ClassName, std::string(Source_.substr(Start, Pos_ - Start)), Loc};
+}
+
+Token Tokenizer::LexAtKeyword() {
+    const SourceLocation Loc = CurrentLocation();
+    Advance(); // @
+    const std::size_t Start = Pos_;
+    while (!AtEnd() && IsIdentChar(CurrentChar())) {
+        Advance();
+    }
+    return Token{TokenKind::AtKeyword, std::string(Source_.substr(Start, Pos_ - Start)), Loc};
 }
 
 Token Tokenizer::LexPseudoClass() {

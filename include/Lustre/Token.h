@@ -15,6 +15,8 @@ enum class TokenKind {
     Identifier,
     // :hover, :active, :disabled
     PseudoClass,
+    // @starting-style (the name, without the @)
+    AtKeyword,
     // --color-primary (declaration site) / var(--color-primary) (reference,
     // emitted as VarKeyword + OpenParen + VariableName + CloseParen)
     VariableName,

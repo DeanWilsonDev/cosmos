@@ -39,6 +39,10 @@ struct ValuePart {
     // `transform: scale(1.5)` (§2), so this holds "1.5" when Literal holds
     // "scale". Not a general function-call grammar.
     std::optional<std::string> CallArgument;
+
+    // True when a comma came just before this value: `transition: width 0.2s,
+    // height 0.4s` is two groups, and the second's `height` follows a comma.
+    bool FollowsComma{false};
 };
 
 struct Declaration {
@@ -76,6 +80,12 @@ struct Rule {
     std::vector<Declaration>         Declarations;
     std::vector<VariableDeclaration> Variables; // component-scoped --vars declared directly in this block (§1.4)
     std::vector<RulePtr>             NestedRules;
+
+    // Declarations from an `@starting-style { }` block nested in this rule's own body,
+    // as CSS nesting writes it: the values this rule's elements start from when they
+    // appear, so their transitions ease them in. They apply to the same element as the
+    // rule itself, not to a descendant the way a nested rule does.
+    std::vector<Declaration> StartingDeclarations;
 
     // Nesting depth from the top level (0 for a top-level rule), and a
     // whole-file monotonic counter assigned at parse time. Together these

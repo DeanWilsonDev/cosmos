@@ -793,4 +793,114 @@ DESCRIBE("Resolver", {
         REQUIRE_TRUE(Style.TextColor.has_value());
         ASSERT_TRUE(*Style.TextColor == (Color{0xAB, 0xCD, 0xEF, 0xFF}));
     });
+
+    IT("resolves a transition list with easings and seconds or milliseconds", {
+        const auto Sheet = ParseOrFail(".bar { transition: flex-grow 0.6s ease-out, background-color 200ms; }", "test.lustre");
+        REQUIRE_TRUE(Sheet.has_value());
+
+        FakeElement Element("bar", "Frame", nullptr, /*ComponentRoot=*/true);
+        Resolver                       R;
+        std::vector<ResolveDiagnostic> Diagnostics;
+        const ResolvedStyle Style = R.Resolve(Element, StylesheetSet{nullptr, &*Sheet}, false, Diagnostics);
+
+        ASSERT_TRUE(Diagnostics.empty());
+        REQUIRE_EQUAL(Style.Transitions.size(), static_cast<std::size_t>(2));
+        ASSERT_TRUE(Style.Transitions[0] == (Transition{"flex-grow", 0.6F, Easing::EaseOut}));
+        ASSERT_TRUE(Style.Transitions[1] == (Transition{"background-color", 0.2F, Easing::Ease}));
+    });
+
+    IT("lets a later transition declaration replace the whole list", {
+        const auto Sheet = ParseOrFail(R"(
+.bar { transition: width 1s, height 1s; }
+.bar-fast { transition: width 0.1s linear; }
+)", "test.lustre");
+        REQUIRE_TRUE(Sheet.has_value());
+
+        FakeElement Element("bar bar-fast", "Frame", nullptr, /*ComponentRoot=*/true);
+        Resolver                       R;
+        std::vector<ResolveDiagnostic> Diagnostics;
+        const ResolvedStyle Style = R.Resolve(Element, StylesheetSet{nullptr, &*Sheet}, false, Diagnostics);
+
+        REQUIRE_EQUAL(Style.Transitions.size(), static_cast<std::size_t>(1));
+        ASSERT_TRUE(Style.Transitions[0] == (Transition{"width", 0.1F, Easing::Linear}));
+    });
+
+    IT("keeps a transition entry's place when its duration comes from a variable", {
+        const auto Sheet = ParseOrFail(R"(
+.bar {
+    --quick: 0.2s;
+    transition: width var(--quick), height 1s;
+}
+)", "test.lustre");
+        REQUIRE_TRUE(Sheet.has_value());
+
+        FakeElement Element("bar", "Frame", nullptr, /*ComponentRoot=*/true);
+        Resolver                       R;
+        std::vector<ResolveDiagnostic> Diagnostics;
+        const ResolvedStyle Style = R.Resolve(Element, StylesheetSet{nullptr, &*Sheet}, false, Diagnostics);
+
+        REQUIRE_EQUAL(Style.Transitions.size(), static_cast<std::size_t>(2));
+        ASSERT_TRUE(Style.Transitions[0] == (Transition{"width", 0.2F, Easing::Ease}));
+        ASSERT_TRUE(Style.Transitions[1] == (Transition{"height", 1.0F, Easing::Ease}));
+    });
+
+    IT("resolves opacity from a number or a percentage, and diagnoses a length", {
+        const auto Sheet = ParseOrFail(R"(
+.half { opacity: 0.5; }
+.faint { opacity: 20%; }
+.wrong { opacity: 4px; }
+)", "test.lustre");
+        REQUIRE_TRUE(Sheet.has_value());
+
+        Resolver                       R;
+        std::vector<ResolveDiagnostic> Diagnostics;
+        FakeElement Half("half", "Frame", nullptr, /*ComponentRoot=*/true);
+        FakeElement Faint("faint", "Frame", nullptr, /*ComponentRoot=*/true);
+        FakeElement Wrong("wrong", "Frame", nullptr, /*ComponentRoot=*/true);
+
+        ASSERT_TRUE(R.Resolve(Half, StylesheetSet{nullptr, &*Sheet}, false, Diagnostics).Opacity == 0.5F);
+        ASSERT_TRUE(R.Resolve(Faint, StylesheetSet{nullptr, &*Sheet}, false, Diagnostics).Opacity == 0.2F);
+        ASSERT_TRUE(Diagnostics.empty());
+        ASSERT_FALSE(R.Resolve(Wrong, StylesheetSet{nullptr, &*Sheet}, false, Diagnostics).Opacity.has_value());
+        ASSERT_EQUAL(Diagnostics.size(), std::size_t{1});
+    });
+
+    IT("resolves @starting-style into the Starting overlay, leaving the element's own values alone", {
+        const auto Sheet = ParseOrFail(R"(
+.bar {
+    flex-grow: 60;
+    background-color: #00FF00;
+    transition: flex-grow 0.6s ease-out;
+    @starting-style { flex-grow: 0; opacity: 0; }
+}
+)", "test.lustre");
+        REQUIRE_TRUE(Sheet.has_value());
+
+        FakeElement Element("bar", "Frame", nullptr, /*ComponentRoot=*/true);
+        Resolver                       R;
+        std::vector<ResolveDiagnostic> Diagnostics;
+        const ResolvedStyle Style = R.Resolve(Element, StylesheetSet{nullptr, &*Sheet}, false, Diagnostics);
+
+        ASSERT_TRUE(Diagnostics.empty());
+        ASSERT_TRUE(Style.FlexGrow == 60.0F);
+        ASSERT_FALSE(Style.Opacity.has_value());
+        REQUIRE_TRUE(Style.Starting != nullptr);
+        ASSERT_TRUE(Style.Starting->FlexGrow == 0.0F);
+        ASSERT_TRUE(Style.Starting->Opacity == 0.0F);
+        ASSERT_FALSE(Style.Starting->BackgroundColor.has_value());
+    });
+
+    IT("diagnoses @starting-style inside a pseudo-class rule and ignores it", {
+        const auto Sheet = ParseOrFail(".bar:hover { @starting-style { opacity: 0; } }", "test.lustre");
+        REQUIRE_TRUE(Sheet.has_value());
+
+        FakeElement Element("bar", "Frame", nullptr, /*ComponentRoot=*/true);
+        Resolver                       R;
+        std::vector<ResolveDiagnostic> Diagnostics;
+        const ResolvedStyle Style = R.Resolve(Element, StylesheetSet{nullptr, &*Sheet}, false, Diagnostics);
+
+        ASSERT_TRUE(Style.Starting == nullptr);
+        REQUIRE_EQUAL(Diagnostics.size(), std::size_t{1});
+        ASSERT_TRUE(Diagnostics[0].Message.find("`:hover`") != std::string::npos);
+    });
 });
