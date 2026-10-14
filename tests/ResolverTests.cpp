@@ -794,6 +794,106 @@ DESCRIBE("Resolver", {
         ASSERT_TRUE(*Style.TextColor == (Color{0xAB, 0xCD, 0xEF, 0xFF}));
     });
 
+    IT("matches a rule appended to a sheet after the sheet was first resolved against", {
+        auto Sheet = ParseOrFail(".a { background-color: #111111; }", "Composed.lustre");
+        auto Extra = ParseOrFail(".b { border-radius: 4px; }", "Extra.lustre");
+        REQUIRE_TRUE(Sheet.has_value());
+        REQUIRE_TRUE(Extra.has_value());
+        FakeElement Element("a b", "Frame", nullptr, true);
+
+        Resolver                       R;
+        std::vector<ResolveDiagnostic> Diagnostics;
+        ASSERT_FALSE(R.Resolve(Element, StylesheetSet{nullptr, &*Sheet}, false, Diagnostics).BorderRadius.has_value());
+        for (RulePtr& Appended : Extra->Rules) {
+            Sheet->Rules.push_back(std::move(Appended));
+        }
+        const ResolvedStyle Style = R.Resolve(Element, StylesheetSet{nullptr, &*Sheet}, false, Diagnostics);
+
+        ASSERT_TRUE(Diagnostics.empty());
+        ASSERT_TRUE(Style.BorderRadius.has_value());
+        REQUIRE_TRUE(Style.BackgroundColor.has_value());
+        ASSERT_TRUE(Style.BackgroundColor->R == 0x11);
+    });
+
+    IT("applies rules merged from several files in the order they were added when their source indexes tie", {
+        auto Sheet = ParseOrFail(".b { background-color: #111111; }", "First.lustre");
+        auto Second = ParseOrFail(".a { background-color: #222222; }", "Second.lustre");
+        REQUIRE_TRUE(Sheet.has_value());
+        REQUIRE_TRUE(Second.has_value());
+        for (RulePtr& Appended : Second->Rules) {
+            Sheet->Rules.push_back(std::move(Appended));
+        }
+        FakeElement Element("a b", "Frame", nullptr, true);
+
+        Resolver                       R;
+        std::vector<ResolveDiagnostic> Diagnostics;
+        const ResolvedStyle Style = R.Resolve(Element, StylesheetSet{nullptr, &*Sheet}, false, Diagnostics);
+
+        REQUIRE_TRUE(Style.BackgroundColor.has_value());
+        ASSERT_TRUE(Style.BackgroundColor->R == 0x22);
+    });
+
+    IT("sees a variable added to global.lustre's :root after an earlier resolve", {
+        auto Global = ParseOrFail(":root { --a: #111111; }", "global.lustre");
+        auto Later = ParseOrFail(":root { --b: #222222; }", "more/global.lustre");
+        auto Component = ParseOrFail(".x { background-color: var(--b); }", "X.lustre");
+        REQUIRE_TRUE(Global.has_value());
+        REQUIRE_TRUE(Later.has_value());
+        REQUIRE_TRUE(Component.has_value());
+        FakeElement Element("x", "Frame", nullptr, true);
+
+        std::vector<ResolveDiagnostic> Diagnostics;
+        ASSERT_FALSE(ResolveStyle(Element, StylesheetSet{&*Global, &*Component}, Diagnostics).BackgroundColor.has_value());
+        for (VariableDeclaration& Added : Later->Root->Variables) {
+            Global->Root->Variables.push_back(std::move(Added));
+        }
+        Diagnostics.clear();
+        const ResolvedStyle Style = ResolveStyle(Element, StylesheetSet{&*Global, &*Component}, Diagnostics);
+
+        ASSERT_TRUE(Diagnostics.empty());
+        REQUIRE_TRUE(Style.BackgroundColor.has_value());
+        ASSERT_TRUE(Style.BackgroundColor->R == 0x22);
+    });
+
+    IT("sees a variable declared in a rule appended to the component sheet after an earlier resolve", {
+        auto Component = ParseOrFail(".x { background-color: var(--late); }", "X.lustre");
+        auto Extra = ParseOrFail(".y { --late: #333333; }", "Y.lustre");
+        REQUIRE_TRUE(Component.has_value());
+        REQUIRE_TRUE(Extra.has_value());
+        FakeElement Element("x", "Frame", nullptr, true);
+
+        std::vector<ResolveDiagnostic> Diagnostics;
+        ASSERT_FALSE(ResolveStyle(Element, StylesheetSet{nullptr, &*Component}, Diagnostics).BackgroundColor.has_value());
+        for (RulePtr& Appended : Extra->Rules) {
+            Component->Rules.push_back(std::move(Appended));
+        }
+        Diagnostics.clear();
+        const ResolvedStyle Style = ResolveStyle(Element, StylesheetSet{nullptr, &*Component}, Diagnostics);
+
+        ASSERT_TRUE(Diagnostics.empty());
+        REQUIRE_TRUE(Style.BackgroundColor.has_value());
+        ASSERT_TRUE(Style.BackgroundColor->R == 0x33);
+    });
+
+    IT("gives a component sheet each global.lustre's own variables when resolved against two in turn", {
+        auto First = ParseOrFail(":root { --c: #444444; }", "first/global.lustre");
+        auto Second = ParseOrFail(":root { --c: #555555; }", "second/global.lustre");
+        auto Component = ParseOrFail(".x { background-color: var(--c); }", "X.lustre");
+        REQUIRE_TRUE(First.has_value());
+        REQUIRE_TRUE(Second.has_value());
+        REQUIRE_TRUE(Component.has_value());
+        FakeElement Element("x", "Frame", nullptr, true);
+        auto RedAgainst = [&](const Stylesheet& Global) {
+            std::vector<ResolveDiagnostic> Diagnostics;
+            const ResolvedStyle Style = ResolveStyle(Element, StylesheetSet{&Global, &*Component}, Diagnostics);
+            return Style.BackgroundColor ? int(Style.BackgroundColor->R) : -1;
+        };
+
+        ASSERT_EQUAL(RedAgainst(*First), 0x44);
+        ASSERT_EQUAL(RedAgainst(*Second), 0x55);
+        ASSERT_EQUAL(RedAgainst(*First), 0x44);
+    });
+
     IT("resolves a transition list with easings and seconds or milliseconds", {
         const auto Sheet = ParseOrFail(".bar { transition: flex-grow 0.6s ease-out, background-color 200ms; }", "test.lustre");
         REQUIRE_TRUE(Sheet.has_value());

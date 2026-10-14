@@ -3,15 +3,46 @@
 #include <algorithm>
 #include <cctype>
 #include <charconv>
+#include <functional>
 #include <unordered_map>
 
 namespace Lustre {
 
-namespace {
+struct TransparentStringHash {
+    using is_transparent = void;
+    std::size_t operator()(std::string_view Text) const { return std::hash<std::string_view>{}(Text); }
+};
+
+using RuleIndicesByName =
+    std::unordered_map<std::string, std::vector<std::size_t>, TransparentStringHash, std::equal_to<>>;
+
+struct SheetShape {
+    std::size_t                RuleCount{0};
+    const Rule*                FirstRule{nullptr};
+    const Rule*                LastRule{nullptr};
+    std::size_t                RootVariableCount{0};
+    const VariableDeclaration* RootVariables{nullptr};
+
+    bool operator==(const SheetShape&) const = default;
+};
+
+struct RuleIndex {
+    SheetShape        Shape;
+    RuleIndicesByName ByClass;
+    RuleIndicesByName ByTag;
+};
 
 struct VariableScope {
     std::unordered_map<std::string, ValuePart> Values;
 };
+
+struct CachedVariableScope {
+    std::shared_ptr<const RuleIndex> GlobalIndex;
+    std::shared_ptr<const RuleIndex> ComponentIndex;
+    VariableScope                    Scope;
+};
+
+namespace {
 
 void CollectVariablesFromRules(const std::vector<RulePtr>& Rules, std::unordered_map<std::string, ValuePart>& Out) {
     for (const auto& R : Rules) {
@@ -560,7 +591,8 @@ void ApplyRuleDeclarations(const Rule& R, const VariableScope& Scope, ResolvedSt
     }
 }
 
-bool ClassListContains(std::string_view ClassList, std::string_view Name) {
+template <typename Visit>
+void ForEachClassName(std::string_view ClassList, Visit&& Stop) {
     std::size_t Pos = 0;
     while (Pos < ClassList.size()) {
         while (Pos < ClassList.size() && std::isspace(static_cast<unsigned char>(ClassList[Pos]))) {
@@ -570,12 +602,17 @@ bool ClassListContains(std::string_view ClassList, std::string_view Name) {
         while (End < ClassList.size() && !std::isspace(static_cast<unsigned char>(ClassList[End]))) {
             ++End;
         }
-        if (End > Pos && ClassList.substr(Pos, End - Pos) == Name) {
-            return true;
+        if (End > Pos && Stop(ClassList.substr(Pos, End - Pos))) {
+            return;
         }
         Pos = End;
     }
-    return false;
+}
+
+bool ClassListContains(std::string_view ClassList, std::string_view Name) {
+    bool Found = false;
+    ForEachClassName(ClassList, [&](std::string_view ClassName) { return Found = ClassName == Name; });
+    return Found;
 }
 
 bool SelectorHeadMatches(const Rule& R, const IStyleTarget& Element) {
@@ -590,11 +627,6 @@ struct MatchedRule {
     const Rule* R;
 };
 
-// Builds the boundary-respecting ancestor chain for descendant matching
-// (§1.2): index 0 is Target itself, each following index is one step
-// further up. The walk stops (excludes anything past it) at the first node
-// where IsComponentRoot() is true, unless Unbounded (global.lustre has no
-// "own subtree" to be bounded by).
 std::vector<const IStyleTarget*> BuildAncestorChain(const IStyleTarget& Target, bool Unbounded) {
     std::vector<const IStyleTarget*> Chain{&Target};
     if (Target.IsComponentRoot() && !Unbounded) {
@@ -632,6 +664,83 @@ void CollectMatches(const Rule& Node, const std::vector<const IStyleTarget*>& Ch
     }
 }
 
+SheetShape ShapeOf(const Stylesheet& Sheet) {
+    SheetShape Shape;
+    Shape.RuleCount = Sheet.Rules.size();
+    if (!Sheet.Rules.empty()) {
+        Shape.FirstRule = Sheet.Rules.front().get();
+        Shape.LastRule = Sheet.Rules.back().get();
+    }
+    if (Sheet.Root) {
+        Shape.RootVariableCount = Sheet.Root->Variables.size();
+        Shape.RootVariables = Sheet.Root->Variables.data();
+    }
+    return Shape;
+}
+
+const std::shared_ptr<const RuleIndex>& MatchIndexFor(const Stylesheet& Sheet) {
+    const SheetShape Shape = ShapeOf(Sheet);
+    if (Sheet.MatchIndex && Sheet.MatchIndex->Shape == Shape) {
+        return Sheet.MatchIndex;
+    }
+    auto Index = std::make_shared<RuleIndex>();
+    Index->Shape = Shape;
+    for (std::size_t I = 0; I < Sheet.Rules.size(); ++I) {
+        const Rule& R = *Sheet.Rules[I];
+        if (R.Kind == SelectorKind::Class) {
+            if (!R.ClassName.empty()) {
+                Index->ByClass[R.ClassName].push_back(I);
+            }
+        } else if (const std::string_view Tag = PrimitiveTagForSelector(R.PrimitiveName); !Tag.empty()) {
+            Index->ByTag[std::string(Tag)].push_back(I);
+        }
+    }
+    Sheet.MatchIndex = std::move(Index);
+    return Sheet.MatchIndex;
+}
+
+std::shared_ptr<const CachedVariableScope> VariableScopeFor(const StylesheetSet& Sheets) {
+    const Stylesheet* Owner = Sheets.Component ? Sheets.Component : Sheets.Global;
+    if (!Owner) {
+        static const std::shared_ptr<const CachedVariableScope> Empty = std::make_shared<CachedVariableScope>();
+        return Empty;
+    }
+    std::shared_ptr<const RuleIndex> GlobalIndex = Sheets.Global ? MatchIndexFor(*Sheets.Global) : nullptr;
+    std::shared_ptr<const RuleIndex> ComponentIndex = Sheets.Component ? MatchIndexFor(*Sheets.Component) : nullptr;
+    const std::shared_ptr<const CachedVariableScope>& Cached = Owner->VariableScopeCache;
+    if (Cached && Cached->GlobalIndex == GlobalIndex && Cached->ComponentIndex == ComponentIndex) {
+        return Cached;
+    }
+    auto Fresh = std::make_shared<CachedVariableScope>();
+    Fresh->GlobalIndex = std::move(GlobalIndex);
+    Fresh->ComponentIndex = std::move(ComponentIndex);
+    Fresh->Scope = BuildVariableScope(Sheets.Global, Sheets.Component);
+    Owner->VariableScopeCache = Fresh;
+    return Fresh;
+}
+
+void AddIndexed(const RuleIndicesByName& Map, std::string_view Name, std::vector<std::size_t>& Out) {
+    const auto It = Map.find(Name);
+    if (It != Map.end()) {
+        Out.insert(Out.end(), It->second.begin(), It->second.end());
+    }
+}
+
+std::vector<std::size_t> CandidateRules(const RuleIndex& Index, const std::vector<const IStyleTarget*>& Chain) {
+    std::vector<std::size_t> Candidates;
+    for (const IStyleTarget* Element : Chain) {
+        const std::string Classes = Element->ClassName();
+        ForEachClassName(Classes, [&](std::string_view ClassName) {
+            AddIndexed(Index.ByClass, ClassName, Candidates);
+            return false;
+        });
+        AddIndexed(Index.ByTag, Element->PrimitiveTag(), Candidates);
+    }
+    std::sort(Candidates.begin(), Candidates.end());
+    Candidates.erase(std::unique(Candidates.begin(), Candidates.end()), Candidates.end());
+    return Candidates;
+}
+
 void ApplyLayer(const Stylesheet* Sheet, const IStyleTarget& Target, bool Unbounded, const VariableScope& Scope,
                  ResolvedStyle& Out, std::vector<ResolveDiagnostic>& Diagnostics) {
     if (!Sheet) {
@@ -640,8 +749,8 @@ void ApplyLayer(const Stylesheet* Sheet, const IStyleTarget& Target, bool Unboun
     const std::vector<const IStyleTarget*> Chain = BuildAncestorChain(Target, Unbounded);
 
     std::vector<MatchedRule> Matches;
-    for (const auto& TopRule : Sheet->Rules) {
-        CollectMatches(*TopRule, Chain, Chain.size(), Matches);
+    for (const std::size_t RuleIndexInSheet : CandidateRules(*MatchIndexFor(*Sheet), Chain)) {
+        CollectMatches(*Sheet->Rules[RuleIndexInSheet], Chain, Chain.size(), Matches);
     }
 
     std::stable_sort(Matches.begin(), Matches.end(), [](const MatchedRule& A, const MatchedRule& B) {
@@ -678,36 +787,13 @@ void FinalizePairedProperties(ResolvedStyle& Style) {
     }
 }
 
-// §1.3's two-layer cascade, composed correctly in one call: global.lustre Unbounded (it has
-// no "own subtree" to be bounded by), the component's own file bounded to Target's own
-// component root. Resolver::Resolve() alone can't express differing Unbounded per layer in
-// a single call, so this applies each layer's own rules directly (mirroring Resolve()'s own
-// body, just with a per-layer Unbounded) instead of routing through it.
-//
-// BUG FIXED 2026-08-03 (docs/next_steps.md): this used to call Resolver::Resolve() twice,
-// once per layer, each time handing it a StylesheetSet with only *that* layer's Stylesheet*
-// populated (the other left nullptr), then merge the two independently-produced
-// ResolvedStyles. Resolve() builds its VariableScope from whichever Sheets it's actually
-// given (line ~536 below) -- so that isolated the variable scope per layer too, not just
-// which sheet's selectors got matched. A component-layer declaration referencing a variable
-// declared only in global.lustre's own :root (the entire point of §1.3/§1.4's two-layer
-// split) silently failed to resolve: the ResolveVariableRef lookup missed, the whole
-// declaration was dropped, and the property came back unset -- not wrong, just as if never
-// written. Fixed by building the VariableScope once from the *full*, un-isolated Sheets
-// (both members, exactly as the caller passed them in) and reusing it for both layers' own
-// rule-application passes -- a variable's visibility is a property of the whole cascade
-// (§1.4: "a component-scoped --variable shadows a same-named global one"), not of which
-// single sheet's selectors a given pass happens to be matching. This also means the two
-// layers now write directly onto one shared ResolvedStyle in cascade order (Global then
-// Component, matching Resolve()'s own priority), so MergeCascadeInto's separate-then-merge
-// step is no longer needed at all.
 ResolvedStyle ResolveCascadedLayers(const IStyleTarget& Target, const StylesheetSet& Sheets,
                                      std::vector<ResolveDiagnostic>& Diagnostics) {
-    const VariableScope Scope = BuildVariableScope(Sheets.Global, Sheets.Component);
+    const std::shared_ptr<const CachedVariableScope> Scope = VariableScopeFor(Sheets);
 
     ResolvedStyle Style;
-    ApplyLayer(Sheets.Global, Target, /*Unbounded=*/true, Scope, Style, Diagnostics);
-    ApplyLayer(Sheets.Component, Target, /*Unbounded=*/false, Scope, Style, Diagnostics);
+    ApplyLayer(Sheets.Global, Target, true, Scope->Scope, Style, Diagnostics);
+    ApplyLayer(Sheets.Component, Target, false, Scope->Scope, Style, Diagnostics);
     FinalizePairedProperties(Style);
     return Style;
 }
@@ -751,16 +837,11 @@ std::string_view PrimitiveTagForSelector(std::string_view LustreSelectorName) {
 
 ResolvedStyle Resolver::Resolve(const IStyleTarget& Target, const StylesheetSet& Sheets, bool Unbounded,
                                  std::vector<ResolveDiagnostic>& OutDiagnostics) const {
-    const VariableScope Scope = BuildVariableScope(Sheets.Global, Sheets.Component);
+    const std::shared_ptr<const CachedVariableScope> Scope = VariableScopeFor(Sheets);
 
     ResolvedStyle Style;
-    // §1.3: exactly two cascade layers -- global.lustre first, then the
-    // component's own file overrides it for anything both define. Applied
-    // as two fully independent passes (not merged by specificity across
-    // layers) so the component layer always wins regardless of nesting
-    // depth on either side.
-    ApplyLayer(Sheets.Global, Target, Unbounded, Scope, Style, OutDiagnostics);
-    ApplyLayer(Sheets.Component, Target, Unbounded, Scope, Style, OutDiagnostics);
+    ApplyLayer(Sheets.Global, Target, Unbounded, Scope->Scope, Style, OutDiagnostics);
+    ApplyLayer(Sheets.Component, Target, Unbounded, Scope->Scope, Style, OutDiagnostics);
     FinalizePairedProperties(Style);
     return Style;
 }

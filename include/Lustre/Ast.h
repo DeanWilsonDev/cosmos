@@ -107,10 +107,15 @@ struct RootBlock {
     SourceLocation                   Location;
 };
 
-// The parsed contents of one `.lustre` file.
+struct RuleIndex;
+struct CachedVariableScope;
+
 struct Stylesheet {
     std::optional<RootBlock> Root;
-    std::vector<RulePtr>     Rules; // top-level rules only; nesting lives inside each Rule
+    std::vector<RulePtr>     Rules;
+
+    mutable std::shared_ptr<const RuleIndex>           MatchIndex;
+    mutable std::shared_ptr<const CachedVariableScope> VariableScopeCache;
 };
 
 } // namespace Lustre
