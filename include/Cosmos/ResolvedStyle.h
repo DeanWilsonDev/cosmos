@@ -6,9 +6,9 @@
 #include <string>
 #include <vector>
 
-namespace Lustre {
+namespace Cosmos {
 
-// docs/lustre_core_spec.md §3 — the resolver's output. Backend-agnostic:
+// docs/cosmos_core_spec.md §3 — the resolver's output. Backend-agnostic:
 // carries every property in §2 (real or stubbed), no Penumbra (or any other
 // backend) type anywhere in here. A bridge repo (`iris-penumbra-backend` for
 // Penumbra) maps this onto concrete style structs.
@@ -43,7 +43,7 @@ enum class Easing { Linear, Ease, EaseIn, EaseOut, EaseInOut };
 
 // One entry of a `transition` list: the property it eases, as written ("flex-grow",
 // "background-color", "all", ...), over how long, along which curve. Which properties a
-// backend can actually ease is the backend's business; Lustre keeps whatever was named.
+// backend can actually ease is the backend's business; Cosmos keeps whatever was named.
 struct Transition {
     std::string Property;
     float       DurationSeconds{0.0F};
@@ -82,7 +82,7 @@ struct Length {
 
 // A property whose value an `attr()` names: the backend reads the element's own prop
 // called Attribute and sets Property from it, as a number in that property's own unit
-// (logical pixels for a length). Lustre can't know the value; it only says where it
+// (logical pixels for a length). Cosmos can't know the value; it only says where it
 // comes from.
 struct AttrBinding {
     std::string Property;
@@ -171,4 +171,4 @@ struct ResolvedStyle {
     std::optional<float> ScrollbarWidthLogical;
 };
 
-} // namespace Lustre
+} // namespace Cosmos

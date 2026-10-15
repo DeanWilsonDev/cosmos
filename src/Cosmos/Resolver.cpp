@@ -1,4 +1,4 @@
-#include "Lustre/Resolver.h"
+#include "Cosmos/Resolver.h"
 
 #include <algorithm>
 #include <cctype>
@@ -6,7 +6,7 @@
 #include <functional>
 #include <unordered_map>
 
-namespace Lustre {
+namespace Cosmos {
 
 struct TransparentStringHash {
     using is_transparent = void;
@@ -825,13 +825,13 @@ ResolvedStyle ResolveStyle(const IStyleTarget& Target, const StylesheetSet& Shee
     return Style;
 }
 
-std::string_view PrimitiveTagForSelector(std::string_view LustreSelectorName) {
+std::string_view PrimitiveTagForSelector(std::string_view CosmosSelectorName) {
     static const std::unordered_map<std::string_view, std::string_view> kMapping{
         {"frame", "Frame"}, {"inline", "Inline"}, {"grid", "Grid"},   {"image", "Image"},
         {"text", "Text"},   {"scroll", "Scroll"}, {"input", "Input"}, {"textarea", "TextArea"},
         {"barchart", "BarChart"}, {"linechart", "LineChart"}, {"donutchart", "DonutChart"},
         {"series", "Series"},     {"slice", "Slice"}};
-    auto It = kMapping.find(LustreSelectorName);
+    auto It = kMapping.find(CosmosSelectorName);
     return It == kMapping.end() ? std::string_view{} : It->second;
 }
 
@@ -846,4 +846,4 @@ ResolvedStyle Resolver::Resolve(const IStyleTarget& Target, const StylesheetSet&
     return Style;
 }
 
-} // namespace Lustre
+} // namespace Cosmos

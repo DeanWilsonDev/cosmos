@@ -1,9 +1,9 @@
 #include "cimmerian/test.hpp"
 
 #include "CompletionContext.h"
-#include "Lustre/Parser.h"
+#include "Cosmos/Parser.h"
 
-using namespace LustreLsp;
+using namespace CosmosLsp;
 
 namespace {
 // clang-format off
@@ -52,13 +52,13 @@ DESCRIBE("CompletionContext", {
     IT("finds the VariableName token inside a var(--name) reference", {
         const auto Token = TokenAtPosition(kSource, 9, 35); // inside "--color-primary"
         REQUIRE_TRUE(Token.has_value());
-        ASSERT_TRUE(Token->Kind == Lustre::TokenKind::VariableName);
+        ASSERT_TRUE(Token->Kind == Cosmos::TokenKind::VariableName);
         ASSERT_TRUE(Token->Text == "color-primary");
     });
 
     IT("collects :root's and a top-level rule's own variables, not a nested rule's", {
-        Lustre::Parser              P(kSource, "test.lustre");
-        const Lustre::ParseResult   Result = P.Parse();
+        Cosmos::Parser              P(kSource, "test.cosmos");
+        const Cosmos::ParseResult   Result = P.Parse();
         REQUIRE_TRUE(Result.Errors.empty());
         REQUIRE_TRUE(Result.Sheet.has_value());
 

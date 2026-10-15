@@ -1,9 +1,9 @@
-#include "Lustre/Parser.h"
+#include "Cosmos/Parser.h"
 
 #include <array>
 #include <utility>
 
-namespace Lustre {
+namespace Cosmos {
 
 namespace {
 bool IsPrimitiveName(std::string_view Name) {
@@ -286,7 +286,7 @@ RulePtr Parser::ParseRule(int Depth) {
             // syntax (§1.1).
             Errors_.push_back(ParseError{
                 "Compound tag+class selector `" + SelectorToken.Text + "." + Current_.Text +
-                    "` is not valid Lustre syntax — selectors are never combined.",
+                    "` is not valid Cosmos syntax — selectors are never combined.",
                 SelectorToken.Location});
             RecoverToNextRule();
             return nullptr;
@@ -356,4 +356,4 @@ ParseResult Parser::Parse() {
     return Result;
 }
 
-} // namespace Lustre
+} // namespace Cosmos

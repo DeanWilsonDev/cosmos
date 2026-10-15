@@ -1,9 +1,9 @@
 #include "cimmerian/test.hpp"
 
-#include "Lustre/Parser.h"
-#include "Lustre/Resolver.h"
+#include "Cosmos/Parser.h"
+#include "Cosmos/Resolver.h"
 
-using namespace Lustre;
+using namespace Cosmos;
 
 namespace {
 
@@ -53,7 +53,7 @@ DESCRIBE("Resolver", {
     background-color: #E8593C;
 }
 )",
-                                        "HealthBar.lustre");
+                                        "HealthBar.cosmos");
         REQUIRE_TRUE(Sheet.has_value());
 
         FakeElement Bar("bar-critical", "Frame", nullptr, /*ComponentRoot=*/true);
@@ -78,7 +78,7 @@ DESCRIBE("Resolver", {
     background-gradient-end: #2A5ADD;
 }
 )",
-                                        "test.lustre");
+                                        "test.cosmos");
         REQUIRE_TRUE(Sheet.has_value());
 
         FakeElement Row("selected-row", "Frame", nullptr, /*ComponentRoot=*/true);
@@ -96,7 +96,7 @@ DESCRIBE("Resolver", {
     });
 
     IT("a lone background-gradient-start with no -end resolves to neither", {
-        const auto Sheet = ParseOrFail(".selected-row { background-gradient-start: #4A90FF; }", "test.lustre");
+        const auto Sheet = ParseOrFail(".selected-row { background-gradient-start: #4A90FF; }", "test.cosmos");
         REQUIRE_TRUE(Sheet.has_value());
 
         FakeElement Row("selected-row", "Frame", nullptr, /*ComponentRoot=*/true);
@@ -110,8 +110,8 @@ DESCRIBE("Resolver", {
     });
 
     IT("a gradient pair split across global and component layers still resolves", {
-        const auto GlobalSheet = ParseOrFail(".selected-row { background-gradient-start: #4A90FF; }", "global.lustre");
-        const auto ComponentSheet = ParseOrFail(".selected-row { background-gradient-end: #2A5ADD; }", "Card.lustre");
+        const auto GlobalSheet = ParseOrFail(".selected-row { background-gradient-start: #4A90FF; }", "global.cosmos");
+        const auto ComponentSheet = ParseOrFail(".selected-row { background-gradient-end: #2A5ADD; }", "Card.cosmos");
         REQUIRE_TRUE(GlobalSheet.has_value());
         REQUIRE_TRUE(ComponentSheet.has_value());
 
@@ -131,7 +131,7 @@ DESCRIBE("Resolver", {
     box-shadow: #000000AA 12px;
 }
 )",
-                                        "test.lustre");
+                                        "test.cosmos");
         REQUIRE_TRUE(Sheet.has_value());
 
         FakeElement Button("gradient-button", "Frame", nullptr, /*ComponentRoot=*/true);
@@ -148,7 +148,7 @@ DESCRIBE("Resolver", {
     });
 
     IT("a lone box-shadow color with no blur radius resolves to neither", {
-        const auto Sheet = ParseOrFail(".gradient-button { box-shadow: #000000AA; }", "test.lustre");
+        const auto Sheet = ParseOrFail(".gradient-button { box-shadow: #000000AA; }", "test.cosmos");
         REQUIRE_TRUE(Sheet.has_value());
 
         FakeElement Button("gradient-button", "Frame", nullptr, /*ComponentRoot=*/true);
@@ -168,7 +168,7 @@ DESCRIBE("Resolver", {
     text-overflow: ellipsis;
 }
 )",
-                                        "test.lustre");
+                                        "test.cosmos");
         REQUIRE_TRUE(Sheet.has_value());
 
         FakeElement Value("inspector-row-value", "Text", nullptr, /*ComponentRoot=*/true);
@@ -184,7 +184,7 @@ DESCRIBE("Resolver", {
     });
 
     IT("resolves text-overflow: clip", {
-        const auto Sheet = ParseOrFail(".x { max-width: 100px; text-overflow: clip; }", "test.lustre");
+        const auto Sheet = ParseOrFail(".x { max-width: 100px; text-overflow: clip; }", "test.cosmos");
         REQUIRE_TRUE(Sheet.has_value());
 
         FakeElement Value("x", "Text", nullptr, /*ComponentRoot=*/true);
@@ -198,7 +198,7 @@ DESCRIBE("Resolver", {
     });
 
     IT("max-width with no text-overflow still resolves (clamps size, no truncation mode set)", {
-        const auto Sheet = ParseOrFail(".x { max-width: 100px; }", "test.lustre");
+        const auto Sheet = ParseOrFail(".x { max-width: 100px; }", "test.cosmos");
         REQUIRE_TRUE(Sheet.has_value());
 
         FakeElement Value("x", "Text", nullptr, /*ComponentRoot=*/true);
@@ -214,7 +214,7 @@ DESCRIBE("Resolver", {
     IT("keeps the unit on width, height, min-width and max-width", {
         const auto Sheet = ParseOrFail(
             ".x { width: 600px; height: 50vh; min-width: 200px; max-width: 100%; }\n.y { width: 80vw; }",
-            "test.lustre");
+            "test.cosmos");
         REQUIRE_TRUE(Sheet.has_value());
 
         FakeElement X("x", "Frame", nullptr, /*ComponentRoot=*/true);
@@ -239,7 +239,7 @@ DESCRIBE("Resolver", {
     });
 
     IT("resolves a unitless width, rem and em as px", {
-        const auto Sheet = ParseOrFail(".x { width: 40; height: 2rem; max-width: 3em; }", "test.lustre");
+        const auto Sheet = ParseOrFail(".x { width: 40; height: 2rem; max-width: 3em; }", "test.cosmos");
         REQUIRE_TRUE(Sheet.has_value());
 
         FakeElement Value("x", "Frame", nullptr, /*ComponentRoot=*/true);
@@ -255,7 +255,7 @@ DESCRIBE("Resolver", {
 
     IT("rejects %, vw and vh on px-only properties with a diagnostic", {
         const auto Sheet =
-            ParseOrFail(".x { gap: 10%; padding: 4px 5vw; border-radius: 2vh; font-size: 50%; }", "test.lustre");
+            ParseOrFail(".x { gap: 10%; padding: 4px 5vw; border-radius: 2vh; font-size: 50%; }", "test.cosmos");
         REQUIRE_TRUE(Sheet.has_value());
 
         FakeElement Value("x", "Frame", nullptr, /*ComponentRoot=*/true);
@@ -274,7 +274,7 @@ DESCRIBE("Resolver", {
 
     IT("resolves negative margins, directly and through a variable", {
         const auto Sheet = ParseOrFail(":root { --pull: -8px; }\n.x { margin: 0px 2px -4px -6.5px; }\n.y { margin: var(--pull); }",
-                                       "test.lustre");
+                                       "test.cosmos");
         REQUIRE_TRUE(Sheet.has_value());
 
         FakeElement X("x", "Frame", nullptr, /*ComponentRoot=*/true);
@@ -295,7 +295,7 @@ DESCRIBE("Resolver", {
     IT("rejects a negative length anywhere but margin with a diagnostic", {
         const auto Sheet = ParseOrFail(
             ":root { --pull: -8px; }\n.x { padding: 4px -2px; gap: -6px; width: -10%; font-size: var(--pull); }",
-            "test.lustre");
+            "test.cosmos");
         REQUIRE_TRUE(Sheet.has_value());
 
         FakeElement Value("x", "Frame", nullptr, /*ComponentRoot=*/true);
@@ -315,7 +315,7 @@ DESCRIBE("Resolver", {
     });
 
     IT("resolves white-space: normal", {
-        const auto Sheet = ParseOrFail(".x { white-space: normal; }", "test.lustre");
+        const auto Sheet = ParseOrFail(".x { white-space: normal; }", "test.cosmos");
         REQUIRE_TRUE(Sheet.has_value());
 
         FakeElement Value("x", "Text", nullptr, /*ComponentRoot=*/true);
@@ -329,7 +329,7 @@ DESCRIBE("Resolver", {
     });
 
     IT("resolves white-space: nowrap", {
-        const auto Sheet = ParseOrFail(".x { white-space: nowrap; }", "test.lustre");
+        const auto Sheet = ParseOrFail(".x { white-space: nowrap; }", "test.cosmos");
         REQUIRE_TRUE(Sheet.has_value());
 
         FakeElement Value("x", "Text", nullptr, /*ComponentRoot=*/true);
@@ -343,7 +343,7 @@ DESCRIBE("Resolver", {
     });
 
     IT("resolves flex-grow as a unitless number", {
-        const auto Sheet = ParseOrFail(".x { flex-grow: 2; }", "test.lustre");
+        const auto Sheet = ParseOrFail(".x { flex-grow: 2; }", "test.cosmos");
         REQUIRE_TRUE(Sheet.has_value());
 
         FakeElement Value("x", "Scroll", nullptr, /*ComponentRoot=*/true);
@@ -358,7 +358,7 @@ DESCRIBE("Resolver", {
     });
 
     IT("resolves flex-grow on a leaf without a container-only diagnostic", {
-        const auto Sheet = ParseOrFail(".x { flex-grow: 1; }", "test.lustre");
+        const auto Sheet = ParseOrFail(".x { flex-grow: 1; }", "test.cosmos");
         REQUIRE_TRUE(Sheet.has_value());
 
         FakeElement Value("x", "Text", nullptr, /*ComponentRoot=*/true);
@@ -373,7 +373,7 @@ DESCRIBE("Resolver", {
     });
 
     IT("resolves scrollbar-color with a thumb and a track", {
-        const auto Sheet = ParseOrFail(".x { scrollbar-color: #3A3A48 #20202880; }", "test.lustre");
+        const auto Sheet = ParseOrFail(".x { scrollbar-color: #3A3A48 #20202880; }", "test.cosmos");
         REQUIRE_TRUE(Sheet.has_value());
 
         FakeElement Value("x", "Scroll", nullptr, /*ComponentRoot=*/true);
@@ -389,7 +389,7 @@ DESCRIBE("Resolver", {
     });
 
     IT("resolves scrollbar-color with only a thumb", {
-        const auto Sheet = ParseOrFail(".x { scrollbar-color: #3A3A48; }", "test.lustre");
+        const auto Sheet = ParseOrFail(".x { scrollbar-color: #3A3A48; }", "test.cosmos");
         REQUIRE_TRUE(Sheet.has_value());
 
         FakeElement Value("x", "Scroll", nullptr, /*ComponentRoot=*/true);
@@ -404,7 +404,7 @@ DESCRIBE("Resolver", {
 
     IT("resolves a :hover scrollbar-color into the hover overlay", {
         const auto Sheet = ParseOrFail(".x { scrollbar-color: #3A3A48; }\n.x:hover { scrollbar-color: #4C5287; }",
-                                       "test.lustre");
+                                       "test.cosmos");
         REQUIRE_TRUE(Sheet.has_value());
 
         FakeElement Value("x", "Scroll", nullptr, /*ComponentRoot=*/true);
@@ -419,7 +419,7 @@ DESCRIBE("Resolver", {
     });
 
     IT("resolves scrollbar-width as a length", {
-        const auto Sheet = ParseOrFail(".x { scrollbar-width: 6px; }", "test.lustre");
+        const auto Sheet = ParseOrFail(".x { scrollbar-width: 6px; }", "test.cosmos");
         REQUIRE_TRUE(Sheet.has_value());
 
         FakeElement Value("x", "Scroll", nullptr, /*ComponentRoot=*/true);
@@ -433,7 +433,7 @@ DESCRIBE("Resolver", {
     });
 
     IT("matches the textarea primitive selector against a TextArea element", {
-        const auto Sheet = ParseOrFail("textarea { background-color: #101014; }", "test.lustre");
+        const auto Sheet = ParseOrFail("textarea { background-color: #101014; }", "test.cosmos");
         REQUIRE_TRUE(Sheet.has_value());
 
         FakeElement Value("", "TextArea", nullptr, /*ComponentRoot=*/true);
@@ -447,7 +447,7 @@ DESCRIBE("Resolver", {
     });
 
     IT("diagnoses a container-only property on a TextArea", {
-        const auto Sheet = ParseOrFail(".x { display: stack; }", "test.lustre");
+        const auto Sheet = ParseOrFail(".x { display: stack; }", "test.cosmos");
         REQUIRE_TRUE(Sheet.has_value());
 
         FakeElement Value("x", "TextArea", nullptr, /*ComponentRoot=*/true);
@@ -469,7 +469,7 @@ DESCRIBE("Resolver", {
     }
 }
 )",
-                                        "Card.lustre");
+                                        "Card.cosmos");
         REQUIRE_TRUE(Sheet.has_value());
 
         FakeElement Card("card", "Frame", nullptr, /*ComponentRoot=*/true);
@@ -492,14 +492,14 @@ DESCRIBE("Resolver", {
     }
 }
 )",
-                                        "Card.lustre");
+                                        "Card.cosmos");
         REQUIRE_TRUE(Sheet.has_value());
 
         FakeElement Card("card", "Frame", nullptr, /*ComponentRoot=*/true);
         // HealthBarRoot stands in for a mounted <HealthBar/> instance's own
         // root -- IsComponentRoot() is true for it because, from Card's
         // resolver call, everything at and below it belongs to a different
-        // component's own file (docs/lustre_core_spec.md §1.2).
+        // component's own file (docs/cosmos_core_spec.md §1.2).
         FakeElement HealthBarRoot("health-bar", "Frame", &Card, /*ComponentRoot=*/true);
         FakeElement Fill("health-bar-fill", "Frame", &HealthBarRoot);
 
@@ -513,7 +513,7 @@ DESCRIBE("Resolver", {
         ASSERT_FALSE(Style.BackgroundColor.has_value());
     });
 
-    IT("lets global.lustre reach across component boundaries", {
+    IT("lets global.cosmos reach across component boundaries", {
         const auto Sheet = ParseOrFail(R"(
 .card {
     .health-bar-fill {
@@ -521,7 +521,7 @@ DESCRIBE("Resolver", {
     }
 }
 )",
-                                        "global.lustre");
+                                        "global.cosmos");
         REQUIRE_TRUE(Sheet.has_value());
 
         FakeElement Card("card", "Frame", nullptr, /*ComponentRoot=*/true);
@@ -536,9 +536,9 @@ DESCRIBE("Resolver", {
         ASSERT_TRUE(Style.BackgroundColor->R == 0xFF);
     });
 
-    IT("lets a component's own file override global.lustre for the same class", {
-        const auto GlobalSheet = ParseOrFail(".card { background-color: #000000; }", "global.lustre");
-        const auto ComponentSheet = ParseOrFail(".card { background-color: #FFFFFF; }", "Card.lustre");
+    IT("lets a component's own file override global.cosmos for the same class", {
+        const auto GlobalSheet = ParseOrFail(".card { background-color: #000000; }", "global.cosmos");
+        const auto ComponentSheet = ParseOrFail(".card { background-color: #FFFFFF; }", "Card.cosmos");
         REQUIRE_TRUE(GlobalSheet.has_value());
         REQUIRE_TRUE(ComponentSheet.has_value());
 
@@ -563,7 +563,7 @@ DESCRIBE("Resolver", {
     background-color: #66BB6A;
 }
 )",
-                                        "Button.lustre");
+                                        "Button.cosmos");
         REQUIRE_TRUE(Sheet.has_value());
 
         FakeElement Button("button", "Frame", nullptr, true);
@@ -581,7 +581,7 @@ DESCRIBE("Resolver", {
     });
 
     IT("reports an undefined variable reference", {
-        const auto Sheet = ParseOrFail(".card { background-color: var(--not-declared); }", "test.lustre");
+        const auto Sheet = ParseOrFail(".card { background-color: var(--not-declared); }", "test.cosmos");
         REQUIRE_TRUE(Sheet.has_value());
 
         FakeElement Card("card", "Frame", nullptr, true);
@@ -595,7 +595,7 @@ DESCRIBE("Resolver", {
     });
 
     IT("shadows a global variable with a component-scoped one of the same name", {
-        const auto GlobalSheet = ParseOrFail(":root { --accent: #000000; }", "global.lustre");
+        const auto GlobalSheet = ParseOrFail(":root { --accent: #000000; }", "global.cosmos");
         const auto ComponentSheet = ParseOrFail(R"(
 .card {
     --accent: #FFFFFF;
@@ -603,7 +603,7 @@ DESCRIBE("Resolver", {
     background-color: var(--accent);
 }
 )",
-                                                 "Card.lustre");
+                                                 "Card.cosmos");
         REQUIRE_TRUE(GlobalSheet.has_value());
         REQUIRE_TRUE(ComponentSheet.has_value());
 
@@ -616,11 +616,11 @@ DESCRIBE("Resolver", {
 
         ASSERT_TRUE(Diagnostics.empty());
         REQUIRE_TRUE(Style.BackgroundColor.has_value());
-        ASSERT_TRUE(Style.BackgroundColor->R == 0xFF); // component-scoped --accent shadows global.lustre's
+        ASSERT_TRUE(Style.BackgroundColor->R == 0xFF); // component-scoped --accent shadows global.cosmos's
     });
 
     IT("reports display: stack applied to a leaf primitive instead of silently resolving it", {
-        const auto Sheet = ParseOrFail(".json-path { display: stack; }", "Toolbar.lustre");
+        const auto Sheet = ParseOrFail(".json-path { display: stack; }", "Toolbar.cosmos");
         REQUIRE_TRUE(Sheet.has_value());
 
         FakeElement Field("json-path", "Input", nullptr, true);
@@ -634,7 +634,7 @@ DESCRIBE("Resolver", {
     });
 
     IT("still resolves display: stack on a real container", {
-        const auto Sheet = ParseOrFail(".toolbar { display: stack; }", "Toolbar.lustre");
+        const auto Sheet = ParseOrFail(".toolbar { display: stack; }", "Toolbar.cosmos");
         REQUIRE_TRUE(Sheet.has_value());
 
         FakeElement Bar("toolbar", "Frame", nullptr, true);
@@ -649,7 +649,7 @@ DESCRIBE("Resolver", {
     });
 
     IT("resolves justify-content: space-between on a container", {
-        const auto Sheet = ParseOrFail(".three-zone-row { justify-content: space-between; }", "ThreeZoneRow.lustre");
+        const auto Sheet = ParseOrFail(".three-zone-row { justify-content: space-between; }", "ThreeZoneRow.cosmos");
         REQUIRE_TRUE(Sheet.has_value());
 
         FakeElement Row("three-zone-row", "Frame", nullptr, true);
@@ -664,7 +664,7 @@ DESCRIBE("Resolver", {
     });
 
     IT("reports justify-content applied to a leaf primitive instead of silently resolving it", {
-        const auto Sheet = ParseOrFail(".json-path { justify-content: center; }", "Toolbar.lustre");
+        const auto Sheet = ParseOrFail(".json-path { justify-content: center; }", "Toolbar.cosmos");
         REQUIRE_TRUE(Sheet.has_value());
 
         FakeElement Field("json-path", "Input", nullptr, true);
@@ -678,7 +678,7 @@ DESCRIBE("Resolver", {
     });
 
     IT("resolves font-style: italic and normal", {
-        const auto Sheet = ParseOrFail(".slanted { font-style: italic; } .upright { font-style: normal; }", "test.lustre");
+        const auto Sheet = ParseOrFail(".slanted { font-style: italic; } .upright { font-style: normal; }", "test.cosmos");
         REQUIRE_TRUE(Sheet.has_value());
 
         FakeElement Slanted("slanted", "Text", nullptr, /*ComponentRoot=*/true);
@@ -703,7 +703,7 @@ DESCRIBE("Resolver", {
 .both { text-decoration: underline line-through; }
 .plain { text-decoration: none; }
 )",
-                                        "test.lustre");
+                                        "test.cosmos");
         REQUIRE_TRUE(Sheet.has_value());
 
         Resolver                       R;
@@ -730,7 +730,7 @@ DESCRIBE("Resolver", {
     });
 
     IT("ignores an unknown text-decoration keyword", {
-        const auto Sheet = ParseOrFail(".x { text-decoration: overline; }", "test.lustre");
+        const auto Sheet = ParseOrFail(".x { text-decoration: overline; }", "test.cosmos");
         REQUIRE_TRUE(Sheet.has_value());
 
         FakeElement Element("x", "Text", nullptr, /*ComponentRoot=*/true);
@@ -748,7 +748,7 @@ DESCRIBE("Resolver", {
 .strong { font-family: "bold.ttf"; }
 .link { color: #20A0F0; text-decoration: underline; }
 )",
-                                        "test.lustre");
+                                        "test.cosmos");
         REQUIRE_TRUE(Sheet.has_value());
 
         FakeElement Element("link  body\tstrong", "Text", nullptr, /*ComponentRoot=*/true);
@@ -767,7 +767,7 @@ DESCRIBE("Resolver", {
     });
 
     IT("does not match a class that is only a prefix of one in the list", {
-        const auto Sheet = ParseOrFail(".body { color: #101010; }", "test.lustre");
+        const auto Sheet = ParseOrFail(".body { color: #101010; }", "test.cosmos");
         REQUIRE_TRUE(Sheet.has_value());
 
         FakeElement Element("body-text other", "Text", nullptr, /*ComponentRoot=*/true);
@@ -780,7 +780,7 @@ DESCRIBE("Resolver", {
     });
 
     IT("matches a descendant selector against one class of an ancestor's list", {
-        const auto Sheet = ParseOrFail(".card { .label { color: #ABCDEF; } }", "test.lustre");
+        const auto Sheet = ParseOrFail(".card { .label { color: #ABCDEF; } }", "test.cosmos");
         REQUIRE_TRUE(Sheet.has_value());
 
         FakeElement Card("panel card", "Frame", nullptr, /*ComponentRoot=*/true);
@@ -795,8 +795,8 @@ DESCRIBE("Resolver", {
     });
 
     IT("matches a rule appended to a sheet after the sheet was first resolved against", {
-        auto Sheet = ParseOrFail(".a { background-color: #111111; }", "Composed.lustre");
-        auto Extra = ParseOrFail(".b { border-radius: 4px; }", "Extra.lustre");
+        auto Sheet = ParseOrFail(".a { background-color: #111111; }", "Composed.cosmos");
+        auto Extra = ParseOrFail(".b { border-radius: 4px; }", "Extra.cosmos");
         REQUIRE_TRUE(Sheet.has_value());
         REQUIRE_TRUE(Extra.has_value());
         FakeElement Element("a b", "Frame", nullptr, true);
@@ -816,8 +816,8 @@ DESCRIBE("Resolver", {
     });
 
     IT("applies rules merged from several files in the order they were added when their source indexes tie", {
-        auto Sheet = ParseOrFail(".b { background-color: #111111; }", "First.lustre");
-        auto Second = ParseOrFail(".a { background-color: #222222; }", "Second.lustre");
+        auto Sheet = ParseOrFail(".b { background-color: #111111; }", "First.cosmos");
+        auto Second = ParseOrFail(".a { background-color: #222222; }", "Second.cosmos");
         REQUIRE_TRUE(Sheet.has_value());
         REQUIRE_TRUE(Second.has_value());
         for (RulePtr& Appended : Second->Rules) {
@@ -833,10 +833,10 @@ DESCRIBE("Resolver", {
         ASSERT_TRUE(Style.BackgroundColor->R == 0x22);
     });
 
-    IT("sees a variable added to global.lustre's :root after an earlier resolve", {
-        auto Global = ParseOrFail(":root { --a: #111111; }", "global.lustre");
-        auto Later = ParseOrFail(":root { --b: #222222; }", "more/global.lustre");
-        auto Component = ParseOrFail(".x { background-color: var(--b); }", "X.lustre");
+    IT("sees a variable added to global.cosmos's :root after an earlier resolve", {
+        auto Global = ParseOrFail(":root { --a: #111111; }", "global.cosmos");
+        auto Later = ParseOrFail(":root { --b: #222222; }", "more/global.cosmos");
+        auto Component = ParseOrFail(".x { background-color: var(--b); }", "X.cosmos");
         REQUIRE_TRUE(Global.has_value());
         REQUIRE_TRUE(Later.has_value());
         REQUIRE_TRUE(Component.has_value());
@@ -856,8 +856,8 @@ DESCRIBE("Resolver", {
     });
 
     IT("sees a variable declared in a rule appended to the component sheet after an earlier resolve", {
-        auto Component = ParseOrFail(".x { background-color: var(--late); }", "X.lustre");
-        auto Extra = ParseOrFail(".y { --late: #333333; }", "Y.lustre");
+        auto Component = ParseOrFail(".x { background-color: var(--late); }", "X.cosmos");
+        auto Extra = ParseOrFail(".y { --late: #333333; }", "Y.cosmos");
         REQUIRE_TRUE(Component.has_value());
         REQUIRE_TRUE(Extra.has_value());
         FakeElement Element("x", "Frame", nullptr, true);
@@ -875,10 +875,10 @@ DESCRIBE("Resolver", {
         ASSERT_TRUE(Style.BackgroundColor->R == 0x33);
     });
 
-    IT("gives a component sheet each global.lustre's own variables when resolved against two in turn", {
-        auto First = ParseOrFail(":root { --c: #444444; }", "first/global.lustre");
-        auto Second = ParseOrFail(":root { --c: #555555; }", "second/global.lustre");
-        auto Component = ParseOrFail(".x { background-color: var(--c); }", "X.lustre");
+    IT("gives a component sheet each global.cosmos's own variables when resolved against two in turn", {
+        auto First = ParseOrFail(":root { --c: #444444; }", "first/global.cosmos");
+        auto Second = ParseOrFail(":root { --c: #555555; }", "second/global.cosmos");
+        auto Component = ParseOrFail(".x { background-color: var(--c); }", "X.cosmos");
         REQUIRE_TRUE(First.has_value());
         REQUIRE_TRUE(Second.has_value());
         REQUIRE_TRUE(Component.has_value());
@@ -895,7 +895,7 @@ DESCRIBE("Resolver", {
     });
 
     IT("resolves a transition list with easings and seconds or milliseconds", {
-        const auto Sheet = ParseOrFail(".bar { transition: flex-grow 0.6s ease-out, background-color 200ms; }", "test.lustre");
+        const auto Sheet = ParseOrFail(".bar { transition: flex-grow 0.6s ease-out, background-color 200ms; }", "test.cosmos");
         REQUIRE_TRUE(Sheet.has_value());
 
         FakeElement Element("bar", "Frame", nullptr, /*ComponentRoot=*/true);
@@ -913,7 +913,7 @@ DESCRIBE("Resolver", {
         const auto Sheet = ParseOrFail(R"(
 .bar { transition: width 1s, height 1s; }
 .bar-fast { transition: width 0.1s linear; }
-)", "test.lustre");
+)", "test.cosmos");
         REQUIRE_TRUE(Sheet.has_value());
 
         FakeElement Element("bar bar-fast", "Frame", nullptr, /*ComponentRoot=*/true);
@@ -931,7 +931,7 @@ DESCRIBE("Resolver", {
     --quick: 0.2s;
     transition: width var(--quick), height 1s;
 }
-)", "test.lustre");
+)", "test.cosmos");
         REQUIRE_TRUE(Sheet.has_value());
 
         FakeElement Element("bar", "Frame", nullptr, /*ComponentRoot=*/true);
@@ -949,7 +949,7 @@ DESCRIBE("Resolver", {
 .half { opacity: 0.5; }
 .faint { opacity: 20%; }
 .wrong { opacity: 4px; }
-)", "test.lustre");
+)", "test.cosmos");
         REQUIRE_TRUE(Sheet.has_value());
 
         Resolver                       R;
@@ -973,7 +973,7 @@ DESCRIBE("Resolver", {
     transition: flex-grow 0.6s ease-out;
     @starting-style { flex-grow: 0; opacity: 0; }
 }
-)", "test.lustre");
+)", "test.cosmos");
         REQUIRE_TRUE(Sheet.has_value());
 
         FakeElement Element("bar", "Frame", nullptr, /*ComponentRoot=*/true);
@@ -991,7 +991,7 @@ DESCRIBE("Resolver", {
     });
 
     IT("diagnoses @starting-style inside a pseudo-class rule and ignores it", {
-        const auto Sheet = ParseOrFail(".bar:hover { @starting-style { opacity: 0; } }", "test.lustre");
+        const auto Sheet = ParseOrFail(".bar:hover { @starting-style { opacity: 0; } }", "test.cosmos");
         REQUIRE_TRUE(Sheet.has_value());
 
         FakeElement Element("bar", "Frame", nullptr, /*ComponentRoot=*/true);
@@ -1005,7 +1005,7 @@ DESCRIBE("Resolver", {
     });
 
     IT("resolves attr() into a binding, leaving the property itself unset", {
-        const auto Sheet = ParseOrFail(".bar { flex-grow: attr(fill); width: attr(size); }", "test.lustre");
+        const auto Sheet = ParseOrFail(".bar { flex-grow: attr(fill); width: attr(size); }", "test.cosmos");
         REQUIRE_TRUE(Sheet.has_value());
 
         FakeElement Element("bar", "Frame", nullptr, /*ComponentRoot=*/true);
@@ -1025,7 +1025,7 @@ DESCRIBE("Resolver", {
         const auto Sheet = ParseOrFail(R"(
 .bar { flex-grow: attr(fill); opacity: 0.5; }
 .bar-fixed { flex-grow: 3; opacity: attr(alpha); }
-)", "test.lustre");
+)", "test.cosmos");
         REQUIRE_TRUE(Sheet.has_value());
 
         FakeElement Element("bar bar-fixed", "Frame", nullptr, /*ComponentRoot=*/true);
@@ -1040,7 +1040,7 @@ DESCRIBE("Resolver", {
     });
 
     IT("diagnoses attr() on a property that doesn't take a single number", {
-        const auto Sheet = ParseOrFail(".bar { background-color: attr(tint); }", "test.lustre");
+        const auto Sheet = ParseOrFail(".bar { background-color: attr(tint); }", "test.cosmos");
         REQUIRE_TRUE(Sheet.has_value());
 
         FakeElement Element("bar", "Frame", nullptr, /*ComponentRoot=*/true);
@@ -1055,7 +1055,7 @@ DESCRIBE("Resolver", {
 
     IT("binds attr() inside @starting-style onto the Starting overlay", {
         const auto Sheet =
-            ParseOrFail(".bar { flex-grow: attr(fill); @starting-style { flex-grow: attr(from); } }", "test.lustre");
+            ParseOrFail(".bar { flex-grow: attr(fill); @starting-style { flex-grow: attr(from); } }", "test.cosmos");
         REQUIRE_TRUE(Sheet.has_value());
 
         FakeElement Element("bar", "Frame", nullptr, /*ComponentRoot=*/true);
@@ -1090,7 +1090,7 @@ DESCRIBE("Resolver", {
     appear-duration: 0.6s;
     change-duration: 400ms;
 }
-)", "test.lustre");
+)", "test.cosmos");
         REQUIRE_TRUE(Sheet.has_value());
 
         FakeElement Element("weekly", "BarChart", nullptr, /*ComponentRoot=*/true);
@@ -1113,7 +1113,7 @@ DESCRIBE("Resolver", {
         const auto Sheet = ParseOrFail(R"(
 series { color: #6193FF; }
 .weekly { bar-gap: 4px; segment-gap: 2px; }
-)", "test.lustre");
+)", "test.cosmos");
         REQUIRE_TRUE(Sheet.has_value());
 
         FakeElement Chart("weekly", "BarChart", nullptr, /*ComponentRoot=*/true);

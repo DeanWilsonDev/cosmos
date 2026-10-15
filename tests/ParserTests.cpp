@@ -1,11 +1,11 @@
 #include "cimmerian/test.hpp"
 
-#include "Lustre/Parser.h"
+#include "Cosmos/Parser.h"
 
-using namespace Lustre;
+using namespace Cosmos;
 
 DESCRIBE("Parser", {
-    IT("parses the HealthBar worked example (docs/lustre_core_spec.md §4)", {
+    IT("parses the HealthBar worked example (docs/cosmos_core_spec.md §4)", {
         const std::string Source = R"(
 .health-bar {
     --bar-background: #333333;
@@ -24,7 +24,7 @@ DESCRIBE("Parser", {
     background-color: #E8593C;
 }
 )";
-        Parser TheParser(Source, "HealthBar.lustre");
+        Parser TheParser(Source, "HealthBar.cosmos");
         const ParseResult Result = TheParser.Parse();
 
         ASSERT_TRUE(Result.Errors.empty());
@@ -54,7 +54,7 @@ DESCRIBE("Parser", {
     }
 }
 )";
-        Parser TheParser(Source, "Card.lustre");
+        Parser TheParser(Source, "Card.cosmos");
         const ParseResult Result = TheParser.Parse();
 
         ASSERT_TRUE(Result.Errors.empty());
@@ -79,7 +79,7 @@ DESCRIBE("Parser", {
     --spacing-md: 16px;
 }
 )";
-        Parser TheParser(Source, "global.lustre");
+        Parser TheParser(Source, "global.cosmos");
         const ParseResult Result = TheParser.Parse();
 
         ASSERT_TRUE(Result.Errors.empty());
@@ -89,7 +89,7 @@ DESCRIBE("Parser", {
     });
 
     IT("rejects a compound tag+class selector", {
-        Parser TheParser("Frame.card { padding: 16px; }", "test.lustre");
+        Parser TheParser("Frame.card { padding: 16px; }", "test.cosmos");
         const ParseResult Result = TheParser.Parse();
 
         ASSERT_FALSE(Result.Errors.empty());
@@ -101,7 +101,7 @@ DESCRIBE("Parser", {
 .card { padding: 16px; }
 .card { margin: 8px; }
 )";
-        Parser TheParser(Source, "test.lustre");
+        Parser TheParser(Source, "test.cosmos");
         const ParseResult Result = TheParser.Parse();
 
         ASSERT_FALSE(Result.Errors.empty());
@@ -109,7 +109,7 @@ DESCRIBE("Parser", {
     });
 
     IT("parses a primitive selector and transform's scale(...) call value", {
-        Parser TheParser("frame { transform: scale(1.5); }", "test.lustre");
+        Parser TheParser("frame { transform: scale(1.5); }", "test.cosmos");
         const ParseResult Result = TheParser.Parse();
 
         ASSERT_TRUE(Result.Errors.empty());
@@ -124,7 +124,7 @@ DESCRIBE("Parser", {
     });
 
     IT("marks the values that follow a comma", {
-        Parser TheParser(".bar { transition: width 0.2s, height 0.4s; }", "test.lustre");
+        Parser TheParser(".bar { transition: width 0.2s, height 0.4s; }", "test.cosmos");
         const ParseResult Result = TheParser.Parse();
 
         ASSERT_TRUE(Result.Errors.empty());
@@ -138,7 +138,7 @@ DESCRIBE("Parser", {
     });
 
     IT("parses a nested @starting-style block onto its rule, not as a nested rule", {
-        Parser TheParser(".bar { flex-grow: 60; @starting-style { flex-grow: 0; opacity: 0; } }", "test.lustre");
+        Parser TheParser(".bar { flex-grow: 60; @starting-style { flex-grow: 0; opacity: 0; } }", "test.cosmos");
         const ParseResult Result = TheParser.Parse();
 
         ASSERT_TRUE(Result.Errors.empty());
@@ -152,7 +152,7 @@ DESCRIBE("Parser", {
     });
 
     IT("reports an unknown at-rule and keeps parsing", {
-        Parser TheParser(".bar { @keyframes { width: 0px; } color: #FFFFFF; }", "test.lustre");
+        Parser TheParser(".bar { @keyframes { width: 0px; } color: #FFFFFF; }", "test.cosmos");
         const ParseResult Result = TheParser.Parse();
 
         REQUIRE_EQUAL(Result.Errors.size(), static_cast<std::size_t>(1));
@@ -164,7 +164,7 @@ DESCRIBE("Parser", {
     });
 
     IT("parses attr(name) into an AttrRef", {
-        Parser TheParser(".bar { flex-grow: attr(fill); }", "test.lustre");
+        Parser TheParser(".bar { flex-grow: attr(fill); }", "test.cosmos");
         const ParseResult Result = TheParser.Parse();
 
         ASSERT_TRUE(Result.Errors.empty());

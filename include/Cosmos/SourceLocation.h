@@ -3,7 +3,7 @@
 #include <cstdint>
 #include <string>
 
-namespace Lustre {
+namespace Cosmos {
 
 struct SourceLocation {
     std::string   FilePath;
@@ -11,4 +11,4 @@ struct SourceLocation {
     std::uint32_t Column{1};
 };
 
-} // namespace Lustre
+} // namespace Cosmos

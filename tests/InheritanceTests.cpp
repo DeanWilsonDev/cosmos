@@ -1,9 +1,9 @@
 #include "cimmerian/test.hpp"
 
-#include "Lustre/Parser.h"
-#include "Lustre/Resolver.h"
+#include "Cosmos/Parser.h"
+#include "Cosmos/Resolver.h"
 
-using namespace Lustre;
+using namespace Cosmos;
 
 namespace {
 
@@ -40,7 +40,7 @@ std::optional<Stylesheet> ParseOrFail(const std::string& Source, const std::stri
 
 DESCRIBE("Inheritance (§1.7)", {
     IT("a child with no color of its own inherits its parent's", {
-        const auto Sheet = ParseOrFail(".row { color: #FFFFFF; }", "test.lustre");
+        const auto Sheet = ParseOrFail(".row { color: #FFFFFF; }", "test.cosmos");
         REQUIRE_TRUE(Sheet.has_value());
 
         FakeElement Row("row", "Frame", nullptr, /*ComponentRoot=*/true);
@@ -58,7 +58,7 @@ DESCRIBE("Inheritance (§1.7)", {
 .row { color: #FFFFFF; }
 .label { color: #000000; }
 )",
-                                        "test.lustre");
+                                        "test.cosmos");
         REQUIRE_TRUE(Sheet.has_value());
 
         FakeElement Row("row", "Frame", nullptr, /*ComponentRoot=*/true);
@@ -72,7 +72,7 @@ DESCRIBE("Inheritance (§1.7)", {
     });
 
     IT("inherits through an intermediate node that sets no color of its own", {
-        const auto Sheet = ParseOrFail(".ancestor { color: #FFFFFF; }", "test.lustre");
+        const auto Sheet = ParseOrFail(".ancestor { color: #FFFFFF; }", "test.cosmos");
         REQUIRE_TRUE(Sheet.has_value());
 
         FakeElement Grandparent("ancestor", "Frame", nullptr, /*ComponentRoot=*/true);
@@ -91,7 +91,7 @@ DESCRIBE("Inheritance (§1.7)", {
 .far { color: #FF0000; }
 .near { color: #0000FF; }
 )",
-                                        "test.lustre");
+                                        "test.cosmos");
         REQUIRE_TRUE(Sheet.has_value());
 
         FakeElement Grandparent("far", "Frame", nullptr, /*ComponentRoot=*/true);
@@ -106,7 +106,7 @@ DESCRIBE("Inheritance (§1.7)", {
     });
 
     IT("non-inherited properties do not flow down from an ancestor", {
-        const auto Sheet = ParseOrFail(".row { background-color: #FF0000; padding: 8px; }", "test.lustre");
+        const auto Sheet = ParseOrFail(".row { background-color: #FF0000; padding: 8px; }", "test.cosmos");
         REQUIRE_TRUE(Sheet.has_value());
 
         FakeElement Row("row", "Frame", nullptr, /*ComponentRoot=*/true);
@@ -126,7 +126,7 @@ DESCRIBE("Inheritance (§1.7)", {
     font-size: 14px;
 }
 )",
-                                        "test.lustre");
+                                        "test.cosmos");
         REQUIRE_TRUE(Sheet.has_value());
 
         FakeElement Row("row", "Frame", nullptr, /*ComponentRoot=*/true);
@@ -148,7 +148,7 @@ DESCRIBE("Inheritance (§1.7)", {
 }
 .title { font-size: 20px; }
 )",
-                                        "test.lustre");
+                                        "test.cosmos");
         REQUIRE_TRUE(Sheet.has_value());
 
         FakeElement Row("row", "Frame", nullptr, /*ComponentRoot=*/true);
@@ -171,7 +171,7 @@ DESCRIBE("Inheritance (§1.7)", {
 .block { font-size: 13px; }
 .code { font-family: "assets/fonts/mono.ttf"; }
 )",
-                                        "test.lustre");
+                                        "test.cosmos");
         REQUIRE_TRUE(Sheet.has_value());
 
         FakeElement Block("block", "Frame", nullptr, /*ComponentRoot=*/true);
@@ -186,7 +186,7 @@ DESCRIBE("Inheritance (§1.7)", {
     });
 
     IT("a font-size with no font-family anywhere gives no font but keeps the size", {
-        const auto Sheet = ParseOrFail(".title { font-size: 20px; }", "test.lustre");
+        const auto Sheet = ParseOrFail(".title { font-size: 20px; }", "test.cosmos");
         REQUIRE_TRUE(Sheet.has_value());
 
         FakeElement Row("", "Frame", nullptr, /*ComponentRoot=*/true);
@@ -206,7 +206,7 @@ DESCRIBE("Inheritance (§1.7)", {
 text { font-family: "assets/fonts/body.ttf"; }
 .badge { font-size: 11px; }
 )",
-                                        "test.lustre");
+                                        "test.cosmos");
         REQUIRE_TRUE(Sheet.has_value());
 
         FakeElement Badge("badge", "Text", nullptr, /*ComponentRoot=*/true);
@@ -220,7 +220,7 @@ text { font-family: "assets/fonts/body.ttf"; }
     });
 
     IT("a root element with no ancestor and no match stays unset, no crash", {
-        const auto Sheet = ParseOrFail(".unrelated { color: #FFFFFF; }", "test.lustre");
+        const auto Sheet = ParseOrFail(".unrelated { color: #FFFFFF; }", "test.cosmos");
         REQUIRE_TRUE(Sheet.has_value());
 
         FakeElement Root("", "Frame", nullptr, /*ComponentRoot=*/true); // no parent at all
@@ -239,7 +239,7 @@ text { font-family: "assets/fonts/body.ttf"; }
     background-color: #FF0000;
 }
 )",
-                                        "test.lustre");
+                                        "test.cosmos");
         REQUIRE_TRUE(Sheet.has_value());
 
         FakeElement Row("row", "Frame", nullptr, /*ComponentRoot=*/true);
@@ -257,8 +257,8 @@ text { font-family: "assets/fonts/body.ttf"; }
     });
 
     IT("still resolves the two-layer cascade correctly through the new entry point", {
-        const auto GlobalSheet = ParseOrFail(".card { color: #000000; }", "global.lustre");
-        const auto ComponentSheet = ParseOrFail(".card { color: #FFFFFF; }", "Card.lustre");
+        const auto GlobalSheet = ParseOrFail(".card { color: #000000; }", "global.cosmos");
+        const auto ComponentSheet = ParseOrFail(".card { color: #FFFFFF; }", "Card.cosmos");
         REQUIRE_TRUE(GlobalSheet.has_value());
         REQUIRE_TRUE(ComponentSheet.has_value());
 
@@ -275,13 +275,13 @@ text { font-family: "assets/fonts/body.ttf"; }
         // Regression test for a real bug (docs/next_steps.md, 2026-08-03): ResolveStyle's
         // two-layer composition used to call Resolver::Resolve() once per layer, each time
         // with the *other* sheet nulled out -- so the component layer's own var() lookups
-        // never saw global.lustre's variables at all, silently dropping any declaration
-        // that referenced one (exactly the pattern every real global.lustre/Component.lustre
+        // never saw global.cosmos's variables at all, silently dropping any declaration
+        // that referenced one (exactly the pattern every real global.cosmos/Component.cosmos
         // pair uses in practice). The test above never caught this because neither layer
         // there uses var() at all -- this one specifically has the *component* layer
         // reference a variable declared only in the *global* layer.
-        const auto GlobalSheet = ParseOrFail(":root { --accent: #ABCDEF; }", "global.lustre");
-        const auto ComponentSheet = ParseOrFail(".card { color: var(--accent); }", "Card.lustre");
+        const auto GlobalSheet = ParseOrFail(":root { --accent: #ABCDEF; }", "global.cosmos");
+        const auto ComponentSheet = ParseOrFail(".card { color: var(--accent); }", "Card.cosmos");
         REQUIRE_TRUE(GlobalSheet.has_value());
         REQUIRE_TRUE(ComponentSheet.has_value());
 
@@ -295,12 +295,12 @@ text { font-family: "assets/fonts/body.ttf"; }
         ASSERT_TRUE(Style.TextColor->R == 0xAB && Style.TextColor->G == 0xCD && Style.TextColor->B == 0xEF);
     });
 
-    IT("global.lustre can still be the source of an inherited value across a component boundary", {
-        // Mirrors ResolverTests.cpp's "lets global.lustre reach across component
+    IT("global.cosmos can still be the source of an inherited value across a component boundary", {
+        // Mirrors ResolverTests.cpp's "lets global.cosmos reach across component
         // boundaries", but for inheritance rather than selector matching: an
         // inherited *value* crossing a component root is expected (§1.7), unlike a
         // descendant *selector* crossing one (§1.2), which stays blocked.
-        const auto Sheet = ParseOrFail(".app-root { color: #ABCDEF; }", "global.lustre");
+        const auto Sheet = ParseOrFail(".app-root { color: #ABCDEF; }", "global.cosmos");
         REQUIRE_TRUE(Sheet.has_value());
 
         FakeElement AppRoot("app-root", "Frame", nullptr, /*ComponentRoot=*/true);
@@ -317,7 +317,7 @@ text { font-family: "assets/fonts/body.ttf"; }
     });
 
     IT("font-style inherits from an ancestor, and a child's own wins", {
-        const auto Sheet = ParseOrFail(".quote { font-style: italic; } .upright { font-style: normal; }", "test.lustre");
+        const auto Sheet = ParseOrFail(".quote { font-style: italic; } .upright { font-style: normal; }", "test.cosmos");
         REQUIRE_TRUE(Sheet.has_value());
 
         FakeElement Quote("quote", "Frame", nullptr, /*ComponentRoot=*/true);
@@ -335,7 +335,7 @@ text { font-family: "assets/fonts/body.ttf"; }
     });
 
     IT("text-decoration does not inherit", {
-        const auto Sheet = ParseOrFail(".link { text-decoration: underline; }", "test.lustre");
+        const auto Sheet = ParseOrFail(".link { text-decoration: underline; }", "test.cosmos");
         REQUIRE_TRUE(Sheet.has_value());
 
         FakeElement Link("link", "Frame", nullptr, /*ComponentRoot=*/true);

@@ -1,16 +1,16 @@
 ---
-description: Read and write Lustre (.lustre) stylesheets — a declarative, CSS-like styling language for Iris UI components. Use whenever a project has .lustre files, a global.lustre, or styles Iris components via a `class` prop.
+description: Read and write Cosmos (.cosmos) stylesheets — a declarative, CSS-like styling language for Iris UI components. Use whenever a project has .cosmos files, a global.cosmos, or styles Iris components via a `class` prop.
 ---
 
-Lustre is a declarative, CSS-like DSL — deliberately **not**
+Cosmos is a declarative, CSS-like DSL — deliberately **not**
 Turing-complete (no logic, conditionals, or data binding) — that is the
 sole styling and animation layer for Iris UI components. `.iris` files
-define structure/behavior; `.lustre` files define appearance, joined to
+define structure/behavior; `.cosmos` files define appearance, joined to
 Iris elements purely through a `class` string prop. It's syntactically a
 strict CSS subset, **runtime-loaded/interpreted** (not compiled ahead of
 time, unlike Iris's own `iris_cc`), specifically to support hot-reloading
 styles without a rebuild. The authoritative reference is
-`docs/lustre_core_spec.md` in this repo; this skill is a summary of it.
+`docs/cosmos_core_spec.md` in this repo; this skill is a summary of it.
 
 ## Build & consume
 
@@ -19,21 +19,21 @@ git submodule update --init --recursive
 cmake -S . -B build
 cmake --build build -j"$(nproc)"
 
-./build/tests/test_lustre
-./build/tools/lustre-lsp/tests/test_lustre_lsp
+./build/tests/test_cosmos
+./build/tools/cosmos-lsp/tests/test_cosmos_lsp
 ```
 
-There is **no standalone `lustre` CLI compiler** — Lustre is consumed by
-linking `liblustre.a` and driving `Lustre::Parser`/`Lustre::Resolver`
-programmatically (a host implements `Lustre::IStyleTarget` over its own
+There is **no standalone `cosmos` CLI compiler** — Cosmos is consumed by
+linking `libcosmos.a` and driving `Cosmos::Parser`/`Cosmos::Resolver`
+programmatically (a host implements `Cosmos::IStyleTarget` over its own
 widget tree and calls `Resolver::Resolve(...)`). Only the library and an
-LSP server (`lustre_lsp`) exist as artifacts.
+LSP server (`cosmos_lsp`) exist as artifacts.
 
 ## File model
 
-- `Name.lustre` — component-scoped stylesheet, paired 1:1 with
+- `Name.cosmos` — component-scoped stylesheet, paired 1:1 with
   `Name.iris`/`Name.irisx`.
-- `global.lustre` — project-wide baseline styles/variables/cross-component
+- `global.cosmos` — project-wide baseline styles/variables/cross-component
   rules; the only file that can select across component boundaries.
 
 ## Selectors — three kinds, never combined
@@ -76,20 +76,20 @@ is an actual descendant (any depth) of a `.card`-classed element — this is
 real specificity, not file-organization sugar.
 
 **Component-boundary rule (resolve-time, not a compile error):** a
-component's own `.lustre` file cannot select into a nested child
-component's internals. `Card.lustre`'s `.card .health-bar-fill` never
-matches inside a mounted `<HealthBar/>`, even if `HealthBar.lustre` itself
+component's own `.cosmos` file cannot select into a nested child
+component's internals. `Card.cosmos`'s `.card .health-bar-fill` never
+matches inside a mounted `<HealthBar/>`, even if `HealthBar.cosmos` itself
 defines `.health-bar-fill`. This is **silent** — a selector that crosses a
 component boundary simply matches nothing, no diagnostic. Only
-`global.lustre` is unbounded. This is the first thing to check when a style
+`global.cosmos` is unbounded. This is the first thing to check when a style
 "isn't applying."
 
 ## Cascade
 
 Exactly two layers, no specificity system beyond nesting depth:
 
-1. `global.lustre` — baseline
-2. Component's own `Name.lustre` — overrides global for anything both define
+1. `global.cosmos` — baseline
+2. Component's own `Name.cosmos` — overrides global for anything both define
 
 No `!important`, no third tier.
 
@@ -102,7 +102,7 @@ No `!important`, no third tier.
 }
 ```
 
-Declared with a `--` prefix, either inside `:root { }` (global.lustre) or
+Declared with a `--` prefix, either inside `:root { }` (global.cosmos) or
 directly inside a component's top-level class block (component-scoped —
 shadows a same-named global variable within that file only). Referenced via
 `var(--name)`. **No fallback argument** — `var(--x, fallback)` is invalid
@@ -129,7 +129,7 @@ padding bleeds out while its text lines up with the content above it. A negative
 length on any other property is a resolve diagnostic, and the declaration is
 dropped.
 
-## Property reference (selected — full real-vs-stubbed table in `docs/lustre_core_spec.md` §2)
+## Property reference (selected — full real-vs-stubbed table in `docs/cosmos_core_spec.md` §2)
 
 **Real (applied by the Penumbra backend today):** `background-color`,
 `background-gradient-start`/`-end`, `border-color`, `border-width`,
@@ -186,7 +186,7 @@ component HealthBar(props: HealthBarProps) {
 ```
 
 ```css
-/* HealthBar.lustre */
+/* HealthBar.cosmos */
 .health-bar {
     --bar-background: #333333;
     background-color: var(--bar-background);
@@ -212,30 +212,30 @@ font-family: ...; }` is accepted without complaint in v1).
 
 ## Tooling
 
-- **`lustre_lsp`** — stdio LSP server. Diagnostics are parse-only (compound
+- **`cosmos_lsp`** — stdio LSP server. Diagnostics are parse-only (compound
   selector, duplicate selector) — it does **not** do resolver-backed
   diagnostics (undefined variable, component-boundary), since those need
   whole-project context a single buffer doesn't have. Completion covers
   property names/pseudo-classes, keyword values for closed-enum properties,
-  and `var(--name)` names in scope (this file + sibling `global.lustre`).
+  and `var(--name)` names in scope (this file + sibling `global.cosmos`).
   Goto-declaration works for `var(--name)`. Reparses the whole buffer on
   every change — no debouncing.
 - **No formatter, no linter, no CLI compiler.**
 - Syntax highlighting reuses tree-sitter's `css` grammar directly (no
-  bespoke Lustre grammar) — `:TSInstall css`.
-- Neovim setup: `editors/nvim/lustre-lsp.lua` +
-  `editors/nvim/lustre-treesitter.lua`.
+  bespoke Cosmos grammar) — `:TSInstall css`.
+- Neovim setup: `editors/nvim/cosmos-lsp.lua` +
+  `editors/nvim/cosmos-treesitter.lua`.
 
-## Things that will bite an agent writing Lustre
+## Things that will bite an agent writing Cosmos
 
 - **Corrected 2026-09-14** — this used to say "runtime wiring into Iris is still
   design-phase"; that was stale/wrong. Static resolution *is* wired in and in
-  production use: `penumbra-ui-backend`'s `Lustre/StyleApplier.cpp`/
+  production use: `penumbra-ui-backend`'s `Cosmos/StyleApplier.cpp`/
   `StyleResolution.cpp`/`StylesheetLoader.cpp` resolve a mounted Iris component's
   `class` against a real `StylesheetSet` at build/mount time (`pharos-proto`'s
-  `App.irisx`/`InspectorPanel.irisx` etc. do this today, real `.lustre` files,
+  `App.irisx`/`InspectorPanel.irisx` etc. do this today, real `.cosmos` files,
   real resolved styles). What's still genuinely open is narrower than the old
-  claim: *hot-reload specifically* — re-resolving styles when a `.lustre` file
+  claim: *hot-reload specifically* — re-resolving styles when a `.cosmos` file
   changes on disk without a full remount/rebuild — doesn't exist yet. Don't
   conflate "hot-reload not built" with "styling doesn't work."
 - `rem`/`em`, `width`/`height`, and `transform: scale(...)` are parsed but
@@ -255,12 +255,12 @@ font-family: ...; }` is accepted without complaint in v1).
 ## Project structure reference
 
 ```
-lustre/
+cosmos/
 ├── README.md
-├── include/Lustre/         — Ast.h, Parser.h, Resolver.h (IStyleTarget), ResolvedStyle.h, Token.h
-├── src/Lustre/              — Tokenizer.cpp, Parser.cpp, Resolver.cpp
-├── tools/lustre-lsp/         — stdio LSP server (Server, CompletionContext, JsonRpc)
-├── tests/                     — test_lustre (TokenizerTests, ParserTests, ResolverTests)
-├── docs/lustre_core_spec.md    — authoritative v1 spec; read this for anything not covered here
-└── editors/nvim/                 — lustre-lsp.lua, lustre-treesitter.lua
+├── include/Cosmos/         — Ast.h, Parser.h, Resolver.h (IStyleTarget), ResolvedStyle.h, Token.h
+├── src/Cosmos/              — Tokenizer.cpp, Parser.cpp, Resolver.cpp
+├── tools/cosmos-lsp/         — stdio LSP server (Server, CompletionContext, JsonRpc)
+├── tests/                     — test_cosmos (TokenizerTests, ParserTests, ResolverTests)
+├── docs/cosmos_core_spec.md    — authoritative v1 spec; read this for anything not covered here
+└── editors/nvim/                 — cosmos-lsp.lua, cosmos-treesitter.lua
 ```

@@ -2,13 +2,13 @@
 
 #include "CompletionContext.h"
 #include "JsonRpc.h"
-#include "Lustre/Parser.h"
+#include "Cosmos/Parser.h"
 
 #include <filesystem>
 #include <fstream>
 #include <sstream>
 
-namespace LustreLsp {
+namespace CosmosLsp {
 
 namespace {
 
@@ -65,21 +65,21 @@ constexpr int kCompletionKindClass = 7;
 constexpr int kCompletionKindKeyword = 14;
 constexpr int kCompletionKindVariable = 6;
 
-// A stylesheet's own sibling `global.lustre`, if it exists and isn't the file itself --
+// A stylesheet's own sibling `global.cosmos`, if it exists and isn't the file itself --
 // the other half of §1.3's two-layer cascade. Read fresh each time rather than cached:
 // completion/goto-definition are not latency-sensitive enough here to justify tracking
-// global.lustre as its own open-or-watched document.
-std::optional<Lustre::Stylesheet> LoadSiblingGlobalSheet(const std::string& Path) {
-    const std::filesystem::path GlobalPath = std::filesystem::path(Path).parent_path() / "global.lustre";
-    if (std::filesystem::path(Path).filename() == "global.lustre") {
+// global.cosmos as its own open-or-watched document.
+std::optional<Cosmos::Stylesheet> LoadSiblingGlobalSheet(const std::string& Path) {
+    const std::filesystem::path GlobalPath = std::filesystem::path(Path).parent_path() / "global.cosmos";
+    if (std::filesystem::path(Path).filename() == "global.cosmos") {
         return std::nullopt;
     }
     const auto Text = ReadFile(GlobalPath);
     if (!Text) {
         return std::nullopt;
     }
-    Lustre::Parser     P(*Text, GlobalPath.string());
-    Lustre::ParseResult Result = P.Parse();
+    Cosmos::Parser     P(*Text, GlobalPath.string());
+    Cosmos::ParseResult Result = P.Parse();
     return std::move(Result.Sheet);
 }
 
@@ -175,7 +175,7 @@ void Server::HandleInitialize(const Amanuensis::JsonValue& Id, const Amanuensis:
     Amanuensis::Json::Insert(Capabilities, "definitionProvider", Amanuensis::JsonValue(true));
 
     Amanuensis::JsonValue ServerInfo = Amanuensis::Json::MakeObject();
-    Amanuensis::Json::Insert(ServerInfo, "name", Amanuensis::JsonValue("lustre-lsp"));
+    Amanuensis::Json::Insert(ServerInfo, "name", Amanuensis::JsonValue("cosmos-lsp"));
     Amanuensis::Json::Insert(ServerInfo, "version", Amanuensis::JsonValue("0.1.0"));
 
     Amanuensis::JsonValue Result = Amanuensis::Json::MakeObject();
@@ -214,7 +214,7 @@ void Server::RebuildDocument(const std::string& Uri, std::string Text) {
     OpenDocument& Doc = Documents_[Uri];
     Doc.Text = std::move(Text);
 
-    Lustre::Parser P(Doc.Text, Path);
+    Cosmos::Parser P(Doc.Text, Path);
     Doc.Parsed = P.Parse();
 
     PublishDiagnostics(Uri, Doc);
@@ -222,11 +222,11 @@ void Server::RebuildDocument(const std::string& Uri, std::string Text) {
 
 void Server::PublishDiagnostics(const std::string& Uri, const OpenDocument& Doc) {
     Amanuensis::JsonValue Diagnostics = Amanuensis::Json::MakeArray();
-    for (const Lustre::ParseError& Err : Doc.Parsed.Errors) {
+    for (const Cosmos::ParseError& Err : Doc.Parsed.Errors) {
         Amanuensis::JsonValue Diagnostic = Amanuensis::Json::MakeObject();
         Amanuensis::Json::Insert(Diagnostic, "range", MakeRange(Err.Location.Line, Err.Location.Column));
         Amanuensis::Json::Insert(Diagnostic, "severity", Amanuensis::JsonValue(static_cast<long long>(1))); // Error
-        Amanuensis::Json::Insert(Diagnostic, "source", Amanuensis::JsonValue("lustre"));
+        Amanuensis::Json::Insert(Diagnostic, "source", Amanuensis::JsonValue("cosmos"));
         Amanuensis::Json::Insert(Diagnostic, "message", Amanuensis::JsonValue(Err.Message));
         Amanuensis::Json::PushBack(Diagnostics, std::move(Diagnostic));
     }
@@ -297,13 +297,13 @@ void Server::HandleDefinition(const Amanuensis::JsonValue& Id, const Amanuensis:
     const OpenDocument& Doc = DocIt->second;
 
     const auto Token = TokenAtPosition(Doc.Text, Line, Column);
-    if (!Token || Token->Kind != Lustre::TokenKind::VariableName) {
+    if (!Token || Token->Kind != Cosmos::TokenKind::VariableName) {
         Reply(Id, Amanuensis::JsonValue());
         return;
     }
 
     // Search this file's own in-scope variables first, then the sibling
-    // global.lustre's (docs/lustre_core_spec.md §1.3's cascade order, applied to
+    // global.cosmos's (docs/cosmos_core_spec.md §1.3's cascade order, applied to
     // lookup rather than value resolution).
     for (const auto* V : CollectInScopeVariables(*Doc.Parsed.Sheet)) {
         if (V->Name == Token->Text) {
@@ -319,7 +319,7 @@ void Server::HandleDefinition(const Amanuensis::JsonValue& Id, const Amanuensis:
     if (const auto Global = LoadSiblingGlobalSheet(Path)) {
         for (const auto* V : CollectInScopeVariables(*Global)) {
             if (V->Name == Token->Text) {
-                const std::filesystem::path GlobalPath = std::filesystem::path(Path).parent_path() / "global.lustre";
+                const std::filesystem::path GlobalPath = std::filesystem::path(Path).parent_path() / "global.cosmos";
                 Amanuensis::JsonValue Location = Amanuensis::Json::MakeObject();
                 Amanuensis::Json::Insert(Location, "uri", Amanuensis::JsonValue(PathToUri(GlobalPath.string())));
                 Amanuensis::Json::Insert(Location, "range", MakeRange(V->Location.Line, V->Location.Column));
@@ -332,4 +332,4 @@ void Server::HandleDefinition(const Amanuensis::JsonValue& Id, const Amanuensis:
     Reply(Id, Amanuensis::JsonValue());
 }
 
-} // namespace LustreLsp
+} // namespace CosmosLsp

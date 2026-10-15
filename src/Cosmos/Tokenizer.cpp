@@ -1,8 +1,8 @@
-#include "Lustre/Tokenizer.h"
+#include "Cosmos/Tokenizer.h"
 
 #include <cctype>
 
-namespace Lustre {
+namespace Cosmos {
 
 namespace {
 bool IsIdentStart(char C) { return std::isalpha(static_cast<unsigned char>(C)) || C == '_'; }
@@ -213,4 +213,4 @@ Token Tokenizer::LexHexColor() {
     return Token{TokenKind::HexColor, std::string(Source_.substr(Start, Pos_ - Start)), Loc};
 }
 
-} // namespace Lustre
+} // namespace Cosmos

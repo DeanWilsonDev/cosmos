@@ -6,7 +6,7 @@
 #include <optional>
 #include <string>
 
-namespace LustreLsp {
+namespace CosmosLsp {
 
 // LSP's wire format: `Content-Length: N\r\n\r\n<N bytes of JSON>`, one JSON-RPC 2.0
 // message per frame (https://microsoft.github.io/language-server-protocol, "Base
@@ -30,4 +30,4 @@ public:
     static void WriteMessage(std::FILE* Out, const Amanuensis::JsonValue& Message);
 };
 
-} // namespace LustreLsp
+} // namespace CosmosLsp

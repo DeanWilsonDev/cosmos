@@ -4,7 +4,7 @@
 #include <cstring>
 #include <string>
 
-namespace LustreLsp {
+namespace CosmosLsp {
 
 namespace {
 
@@ -78,4 +78,4 @@ void JsonRpc::WriteMessage(std::FILE* Out, const Amanuensis::JsonValue& Message)
     std::fflush(Out);
 }
 
-} // namespace LustreLsp
+} // namespace CosmosLsp

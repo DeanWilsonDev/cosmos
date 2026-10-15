@@ -1,16 +1,16 @@
 #pragma once
 
-#include "Lustre/Ast.h"
-#include "Lustre/SourceLocation.h"
-#include "Lustre/Token.h"
-#include "Lustre/Tokenizer.h"
+#include "Cosmos/Ast.h"
+#include "Cosmos/SourceLocation.h"
+#include "Cosmos/Token.h"
+#include "Cosmos/Tokenizer.h"
 
 #include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
 
-namespace Lustre {
+namespace Cosmos {
 
 struct ParseError {
     std::string    Message;
@@ -22,7 +22,7 @@ struct ParseResult {
     std::vector<ParseError>   Errors;
 };
 
-// Recursive-descent parser for one `.lustre` file (docs/lustre_core_spec.md
+// Recursive-descent parser for one `.cosmos` file (docs/cosmos_core_spec.md
 // §1). Diagnoses the two purely-syntactic errors from §6's catalogue —
 // compound tag+class selectors and duplicate-selector rule blocks — as
 // parse errors; everything else in §6 (undefined variables,
@@ -62,4 +62,4 @@ private:
     std::size_t              NextSourceIndex_{0};
 };
 
-} // namespace Lustre
+} // namespace Cosmos

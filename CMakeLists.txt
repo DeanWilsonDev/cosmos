@@ -1,13 +1,13 @@
 cmake_minimum_required(VERSION 3.30)
 
-project(Lustre
+project(Cosmos
     VERSION 0.1.0
-    DESCRIPTION "Lustre — styling and animation layer for Iris"
+    DESCRIPTION "Cosmos — styling and animation layer for Iris"
     LANGUAGES CXX)
 
 if((CMAKE_CXX_COMPILER_ID STREQUAL "GNU" AND CMAKE_CXX_COMPILER_VERSION VERSION_LESS 14)
    OR (CMAKE_CXX_COMPILER_ID STREQUAL "Clang" AND CMAKE_CXX_COMPILER_VERSION VERSION_LESS 19))
-  message(FATAL_ERROR "Lustre needs GCC 14 or later or Clang 19 or later; found ${CMAKE_CXX_COMPILER_ID} ${CMAKE_CXX_COMPILER_VERSION}")
+  message(FATAL_ERROR "Cosmos needs GCC 14 or later or Clang 19 or later; found ${CMAKE_CXX_COMPILER_ID} ${CMAKE_CXX_COMPILER_VERSION}")
 endif()
 
 set(CMAKE_CXX_STANDARD 26)
@@ -42,66 +42,66 @@ add_subdirectory(libs/cimmerian)
 
 # ---------------------------------------------------------------------------
 # Amanuensis — the ecosystem's own JSON library, vendored as a git submodule
-# the same way `iris` does (iris/libs/amanuensis). Used only by lustre_lsp's
-# JSON-RPC transport (tools/lustre-lsp/JsonRpc.h) — the lustre core library
+# the same way `iris` does (iris/libs/amanuensis). Used only by cosmos_lsp's
+# JSON-RPC transport (tools/cosmos-lsp/JsonRpc.h) — the cosmos core library
 # itself has no JSON dependency.
 # ---------------------------------------------------------------------------
 add_subdirectory(libs/amanuensis)
 
 # ---------------------------------------------------------------------------
-# Lustre core — static library. Owns parsing, cascade/selector resolution,
+# Cosmos core — static library. Owns parsing, cascade/selector resolution,
 # and variable resolution, producing a generic resolved-style IR (docs
-# /lustre_core_spec.md §3). Deliberately has no dependency on Penumbra, Iris,
+# /cosmos_core_spec.md §3). Deliberately has no dependency on Penumbra, Iris,
 # or any other backend/host — mapping the IR onto a concrete backend's style
 # structs is a separate bridge repo's job (`iris-penumbra-backend` for
 # Penumbra), mirroring the `iris`/`iris-penumbra-backend` split exactly.
 # ---------------------------------------------------------------------------
-add_library(lustre STATIC
-    src/Lustre/Tokenizer.cpp
-    src/Lustre/Parser.cpp
-    src/Lustre/Resolver.cpp)
+add_library(cosmos STATIC
+    src/Cosmos/Tokenizer.cpp
+    src/Cosmos/Parser.cpp
+    src/Cosmos/Resolver.cpp)
 
-target_include_directories(lustre PUBLIC include)
-target_compile_features(lustre PUBLIC cxx_std_26)
+target_include_directories(cosmos PUBLIC include)
+target_compile_features(cosmos PUBLIC cxx_std_26)
 
 # ---------------------------------------------------------------------------
-# lustre-lsp — stdio LSP server for `.lustre` files (docs/lustre_lsp_decision.md).
+# cosmos-lsp — stdio LSP server for `.cosmos` files (docs/cosmos_lsp_decision.md).
 # Split into a lib + a one-file executable, same as iris/tools/iris-lsp, so
-# lustre_lsp_tests can link the real implementation without also linking a second
+# cosmos_lsp_tests can link the real implementation without also linking a second
 # `main()`.
 # ---------------------------------------------------------------------------
-add_library(lustre_lsp_lib STATIC
-    tools/lustre-lsp/Server.cpp
-    tools/lustre-lsp/CompletionContext.cpp
-    tools/lustre-lsp/JsonRpc.cpp)
-target_include_directories(lustre_lsp_lib PUBLIC tools/lustre-lsp)
-target_link_libraries(lustre_lsp_lib PUBLIC lustre amanuensis)
+add_library(cosmos_lsp_lib STATIC
+    tools/cosmos-lsp/Server.cpp
+    tools/cosmos-lsp/CompletionContext.cpp
+    tools/cosmos-lsp/JsonRpc.cpp)
+target_include_directories(cosmos_lsp_lib PUBLIC tools/cosmos-lsp)
+target_link_libraries(cosmos_lsp_lib PUBLIC cosmos amanuensis)
 
-add_executable(lustre_lsp tools/lustre-lsp/main.cpp)
-target_link_libraries(lustre_lsp PRIVATE lustre_lsp_lib)
+add_executable(cosmos_lsp tools/cosmos-lsp/main.cpp)
+target_link_libraries(cosmos_lsp PRIVATE cosmos_lsp_lib)
 
 # ---------------------------------------------------------------------------
 # Tests — one Cimmerian-based executable, matching `iris`'s
 # DESCRIBE/IT/ASSERT_* + auto-registration convention (see that repo's
 # CLAUDE.md "Build and test" section).
 # ---------------------------------------------------------------------------
-add_executable(test_lustre
+add_executable(test_cosmos
     tests/TestMain.cpp
     tests/TokenizerTests.cpp
     tests/ParserTests.cpp
     tests/ResolverTests.cpp
     tests/InheritanceTests.cpp)
 
-target_link_libraries(test_lustre PRIVATE lustre cimmerian)
-set_target_properties(test_lustre PROPERTIES
+target_link_libraries(test_cosmos PRIVATE cosmos cimmerian)
+set_target_properties(test_cosmos PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tests")
 
-add_executable(test_lustre_lsp
-    tools/lustre-lsp/tests/TestMain.cpp
-    tools/lustre-lsp/tests/JsonRpcTests.cpp
-    tools/lustre-lsp/tests/CompletionContextTests.cpp
-    tools/lustre-lsp/tests/ServerTests.cpp)
+add_executable(test_cosmos_lsp
+    tools/cosmos-lsp/tests/TestMain.cpp
+    tools/cosmos-lsp/tests/JsonRpcTests.cpp
+    tools/cosmos-lsp/tests/CompletionContextTests.cpp
+    tools/cosmos-lsp/tests/ServerTests.cpp)
 
-target_link_libraries(test_lustre_lsp PRIVATE lustre_lsp_lib cimmerian)
-set_target_properties(test_lustre_lsp PROPERTIES
-    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools/lustre-lsp/tests")
+target_link_libraries(test_cosmos_lsp PRIVATE cosmos_lsp_lib cimmerian)
+set_target_properties(test_cosmos_lsp PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools/cosmos-lsp/tests")

@@ -1,7 +1,7 @@
 #pragma once
 
-#include "Lustre/Ast.h"
-#include "Lustre/Token.h"
+#include "Cosmos/Ast.h"
+#include "Cosmos/Token.h"
 
 #include <cstdint>
 #include <optional>
@@ -9,17 +9,17 @@
 #include <string_view>
 #include <vector>
 
-namespace LustreLsp {
+namespace CosmosLsp {
 
 enum class CompletionContextKind {
     // Start of a new selector or declaration — a `.class`/primitive selector, a
-    // pseudo-class, or (inside a block) a property name. Lustre's own grammar makes a
+    // pseudo-class, or (inside a block) a property name. Cosmos's own grammar makes a
     // property name and a nested primitive selector ambiguous until the *next* token
     // (`ident:` vs `ident{`), so this context offers both rather than trying to
     // disambiguate a partially-typed identifier.
     Statement,
     // Right of a property's `:`, before its terminating `;`/`}` — offers that
-    // property's keyword values (docs/lustre_core_spec.md §2), if any.
+    // property's keyword values (docs/cosmos_core_spec.md §2), if any.
     Value,
     // Inside an unclosed `var(` — offers in-scope `--variable` names.
     VarRef,
@@ -32,25 +32,25 @@ struct CompletionContext {
 };
 
 // Tokenizes Source in full and classifies what a completion request at (Line, Column)
-// (1-based, matching Lustre::SourceLocation's convention) is completing. A pragmatic
+// (1-based, matching Cosmos::SourceLocation's convention) is completing. A pragmatic
 // token-based classifier, not a real incremental parse — mirrors the role
-// iris-lsp's own RenderTextHeuristics plays for render{} text, just built on Lustre's
-// token stream instead of raw text since Lustre::Tokenizer is cheap enough to always
+// iris-lsp's own RenderTextHeuristics plays for render{} text, just built on Cosmos's
+// token stream instead of raw text since Cosmos::Tokenizer is cheap enough to always
 // re-run in full (§0 goal — see Server.h's own class comment).
 CompletionContext ClassifyCompletionContext(std::string_view Source, std::uint32_t Line, std::uint32_t Column);
 
 // Returns the token whose source span contains (Line, Column), if any — used by
 // goto-definition to find the `var(--name)` reference (or declaration) under the
 // cursor.
-std::optional<Lustre::Token> TokenAtPosition(std::string_view Source, std::uint32_t Line, std::uint32_t Column);
+std::optional<Cosmos::Token> TokenAtPosition(std::string_view Source, std::uint32_t Line, std::uint32_t Column);
 
 // Every `--name` in scope for Sheet: :root's own variables plus each top-level rule's
-// own component-scoped variables (docs/lustre_core_spec.md §1.4 — a nested rule's own
+// own component-scoped variables (docs/cosmos_core_spec.md §1.4 — a nested rule's own
 // `--variable` is scoped to that rule alone, never wider, so nested rules are
 // deliberately not walked here).
-std::vector<const Lustre::VariableDeclaration*> CollectInScopeVariables(const Lustre::Stylesheet& Sheet);
+std::vector<const Cosmos::VariableDeclaration*> CollectInScopeVariables(const Cosmos::Stylesheet& Sheet);
 
-// Static language data, straight from docs/lustre_core_spec.md §1.1/§2.
+// Static language data, straight from docs/cosmos_core_spec.md §1.1/§2.
 extern const std::vector<std::string_view> kPropertyNames;
 extern const std::vector<std::string_view> kPrimitiveSelectorNames;
 extern const std::vector<std::string_view> kPseudoClassNames;
@@ -60,4 +60,4 @@ extern const std::vector<std::string_view> kPseudoClassNames;
 // (colors/lengths/strings/var()-only values have no fixed keyword set to complete).
 std::vector<std::string_view> PropertyValueKeywords(std::string_view Property);
 
-} // namespace LustreLsp
+} // namespace CosmosLsp

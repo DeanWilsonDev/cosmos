@@ -1,14 +1,14 @@
 {
-  "name": "lustre",
-  "description": "Lustre's own plugin marketplace: the language skill for projects that author Lustre stylesheets.",
+  "name": "cosmos",
+  "description": "Cosmos's own plugin marketplace: the language skill for projects that author Cosmos stylesheets.",
   "owner": {
     "name": "Dean Wilson"
   },
   "plugins": [
     {
-      "name": "lustre",
+      "name": "cosmos",
       "source": "./",
-      "description": "Skills for reading and writing Lustre (.lustre) — a declarative, CSS-like stylesheet language for Iris UI components."
+      "description": "Skills for reading and writing Cosmos (.cosmos) — a declarative, CSS-like stylesheet language for Iris UI components."
     }
   ]
 }

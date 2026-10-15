@@ -7,7 +7,7 @@
 #include <filesystem>
 #include <fstream>
 
-using namespace LustreLsp;
+using namespace CosmosLsp;
 
 namespace {
 
@@ -83,7 +83,7 @@ DESCRIBE("Server", {
     });
 
     IT("publishes a diagnostic for a compound tag+class selector", {
-        const std::string Uri = "file:///Bad.lustre";
+        const std::string Uri = "file:///Bad.cosmos";
         const auto Responses = RunServer({MakeDidOpen(Uri, "Frame.card {\n    padding: 8px;\n}\n")});
 
         bool Found = false;
@@ -98,7 +98,7 @@ DESCRIBE("Server", {
     });
 
     IT("offers property names when completing inside a rule block", {
-        const std::string Uri = "file:///Card.lustre";
+        const std::string Uri = "file:///Card.cosmos";
         const auto Responses = RunServer({
             MakeDidOpen(Uri, ".card {\n    \n}\n"),
             MakeRequest(2, "textDocument/completion", Uri, 1, 4),
@@ -117,7 +117,7 @@ DESCRIBE("Server", {
     });
 
     IT("goto-definition on a var(--name) reference jumps to its declaration", {
-        const std::string Uri = "file:///HealthBar.lustre";
+        const std::string Uri = "file:///HealthBar.cosmos";
         const std::string Text = ".health-bar {\n"
                                    "    --bar-background: #333333;\n"
                                    "\n"

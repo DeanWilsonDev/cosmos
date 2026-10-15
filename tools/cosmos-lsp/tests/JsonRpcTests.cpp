@@ -13,10 +13,10 @@ DESCRIBE("JsonRpc", {
         Amanuensis::Json::Insert(Message, "jsonrpc", Amanuensis::JsonValue("2.0"));
         Amanuensis::Json::Insert(Message, "id", Amanuensis::JsonValue(static_cast<long long>(42)));
         Amanuensis::Json::Insert(Message, "method", Amanuensis::JsonValue("test/echo"));
-        LustreLsp::JsonRpc::WriteMessage(Temp, Message);
+        CosmosLsp::JsonRpc::WriteMessage(Temp, Message);
 
         std::rewind(Temp);
-        const auto Read = LustreLsp::JsonRpc::ReadMessage(Temp);
+        const auto Read = CosmosLsp::JsonRpc::ReadMessage(Temp);
         REQUIRE_TRUE(Read.has_value());
         ASSERT_TRUE(Amanuensis::Json::AsString(Amanuensis::Json::Get(*Read, "method")) == "test/echo");
         ASSERT_TRUE(Amanuensis::Json::AsInteger(Amanuensis::Json::Get(*Read, "id")) == 42);
@@ -31,12 +31,12 @@ DESCRIBE("JsonRpc", {
         Amanuensis::Json::Insert(First, "method", Amanuensis::JsonValue("first"));
         Amanuensis::JsonValue Second = Amanuensis::Json::MakeObject();
         Amanuensis::Json::Insert(Second, "method", Amanuensis::JsonValue("second"));
-        LustreLsp::JsonRpc::WriteMessage(Temp, First);
-        LustreLsp::JsonRpc::WriteMessage(Temp, Second);
+        CosmosLsp::JsonRpc::WriteMessage(Temp, First);
+        CosmosLsp::JsonRpc::WriteMessage(Temp, Second);
 
         std::rewind(Temp);
-        const auto Read1 = LustreLsp::JsonRpc::ReadMessage(Temp);
-        const auto Read2 = LustreLsp::JsonRpc::ReadMessage(Temp);
+        const auto Read1 = CosmosLsp::JsonRpc::ReadMessage(Temp);
+        const auto Read2 = CosmosLsp::JsonRpc::ReadMessage(Temp);
         REQUIRE_TRUE(Read1.has_value());
         REQUIRE_TRUE(Read2.has_value());
         ASSERT_TRUE(Amanuensis::Json::AsString(Amanuensis::Json::Get(*Read1, "method")) == "first");
@@ -48,7 +48,7 @@ DESCRIBE("JsonRpc", {
         std::FILE* Temp = std::tmpfile();
         REQUIRE_TRUE(Temp != nullptr);
         std::rewind(Temp);
-        ASSERT_FALSE(LustreLsp::JsonRpc::ReadMessage(Temp).has_value());
+        ASSERT_FALSE(CosmosLsp::JsonRpc::ReadMessage(Temp).has_value());
         std::fclose(Temp);
     });
 });

@@ -1,7 +1,7 @@
 #pragma once
 
-#include "Lustre/Ast.h"
-#include "Lustre/Parser.h"
+#include "Cosmos/Ast.h"
+#include "Cosmos/Parser.h"
 
 #include <amanuensis.hpp>
 
@@ -9,14 +9,14 @@
 #include <string>
 #include <unordered_map>
 
-namespace LustreLsp {
+namespace CosmosLsp {
 
 // The whole server: one process, one client connection over stdio, request dispatch for
-// the handful of LSP methods this tool implements (docs/lustre_lsp_decision.md). Unlike
+// the handful of LSP methods this tool implements (docs/cosmos_lsp_decision.md). Unlike
 // iris-lsp, there is no host-language proxy and no VirtualDocument position-translation
-// step — `.lustre` is a self-contained grammar with its own real Tokenizer/Parser
-// (Lustre::Parser), so every open document is just reparsed in full on each change.
-// Lustre files are small stylesheets, so re-parsing on every keystroke is not worth
+// step — `.cosmos` is a self-contained grammar with its own real Tokenizer/Parser
+// (Cosmos::Parser), so every open document is just reparsed in full on each change.
+// Cosmos files are small stylesheets, so re-parsing on every keystroke is not worth
 // debouncing for v1 (same call iris-lsp made for its own Iris::CompileFile step).
 //
 // Single-threaded: there is no background proxy thread here, so — unlike iris-lsp —
@@ -30,7 +30,7 @@ public:
 private:
     struct OpenDocument {
         std::string        Text;
-        Lustre::ParseResult Parsed;
+        Cosmos::ParseResult Parsed;
     };
 
     void HandleMessage(const Amanuensis::JsonValue& Message);
@@ -54,4 +54,4 @@ private:
     std::unordered_map<std::string, OpenDocument> Documents_;
 };
 
-} // namespace LustreLsp
+} // namespace CosmosLsp

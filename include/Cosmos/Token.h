@@ -1,10 +1,10 @@
 #pragma once
 
-#include "Lustre/SourceLocation.h"
+#include "Cosmos/SourceLocation.h"
 
 #include <string>
 
-namespace Lustre {
+namespace Cosmos {
 
 enum class TokenKind {
     // .card, .card-title
@@ -45,4 +45,4 @@ struct Token {
     SourceLocation Location;
 };
 
-} // namespace Lustre
+} // namespace Cosmos

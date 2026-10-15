@@ -1,14 +1,14 @@
 #pragma once
 
-#include "Lustre/Token.h"
+#include "Cosmos/Token.h"
 
 #include <cstddef>
 #include <string>
 #include <string_view>
 
-namespace Lustre {
+namespace Cosmos {
 
-// Lexer for `.lustre` source (docs/lustre_core_spec.md §1). Understands the
+// Lexer for `.cosmos` source (docs/cosmos_core_spec.md §1). Understands the
 // full v1 grammar's lexical surface: class/pseudo-class selectors, bare
 // identifiers (primitive selectors, property names, keyword values),
 // `--variable` declarations and `var(--name)` references, `:root`, numbers
@@ -47,4 +47,4 @@ private:
     std::uint32_t     Column_{1};
 };
 
-} // namespace Lustre
+} // namespace Cosmos

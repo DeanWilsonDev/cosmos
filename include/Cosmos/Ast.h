@@ -1,15 +1,15 @@
 #pragma once
 
-#include "Lustre/SourceLocation.h"
+#include "Cosmos/SourceLocation.h"
 
 #include <memory>
 #include <optional>
 #include <string>
 #include <vector>
 
-namespace Lustre {
+namespace Cosmos {
 
-// docs/lustre_core_spec.md §1.1 — a selector is a class selector or a
+// docs/cosmos_core_spec.md §1.1 — a selector is a class selector or a
 // primitive-element selector, never combined into a tag+class compound
 // (`Frame.card { }` is a parse error). A pseudo-class may be suffixed
 // directly onto either (`.card:hover { }`, §1.2's worked example) — that's
@@ -70,7 +70,7 @@ struct Rule {
 
     // Populated when Kind == Class.
     std::string ClassName;
-    // Populated when Kind == Primitive (already the lowercase Lustre form,
+    // Populated when Kind == Primitive (already the lowercase Cosmos form,
     // e.g. "frame" -- §1.1's mapping table is applied at resolve time).
     std::string PrimitiveName;
     // A pseudo-class suffixed directly onto this selector (`.card:hover`),
@@ -98,8 +98,8 @@ struct Rule {
     SourceLocation Location;
 };
 
-// A `:root { }` block — declares global.lustre's project-wide variables
-// (§1.4). Only valid at the top level of global.lustre; the parser doesn't
+// A `:root { }` block — declares global.cosmos's project-wide variables
+// (§1.4). Only valid at the top level of global.cosmos; the parser doesn't
 // enforce *which file* it appears in (that's a whole-project concern outside
 // a single-file parse), only that it's well-formed.
 struct RootBlock {
@@ -118,4 +118,4 @@ struct Stylesheet {
     mutable std::shared_ptr<const CachedVariableScope> VariableScopeCache;
 };
 
-} // namespace Lustre
+} // namespace Cosmos

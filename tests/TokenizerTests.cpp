@@ -1,12 +1,12 @@
 #include "cimmerian/test.hpp"
 
-#include "Lustre/Tokenizer.h"
+#include "Cosmos/Tokenizer.h"
 
-using namespace Lustre;
+using namespace Cosmos;
 
 DESCRIBE("Tokenizer", {
     IT("lexes a class selector and a declaration", {
-        Tokenizer Tok(".card { padding: 16px; }", "test.lustre");
+        Tokenizer Tok(".card { padding: 16px; }", "test.cosmos");
 
         const Token T1 = Tok.NextToken();
         ASSERT_TRUE(T1.Kind == TokenKind::ClassName && T1.Text == "card"); // class selector without leading dot
@@ -34,7 +34,7 @@ DESCRIBE("Tokenizer", {
     });
 
     IT("lexes a leading minus as part of a number", {
-        Tokenizer Tok("margin: -6px -.5px 0px; --gap: -4px", "test.lustre");
+        Tokenizer Tok("margin: -6px -.5px 0px; --gap: -4px", "test.cosmos");
 
         ASSERT_TRUE(Tok.NextToken().Kind == TokenKind::Identifier);
         ASSERT_TRUE(Tok.NextToken().Kind == TokenKind::Colon);
@@ -60,14 +60,14 @@ DESCRIBE("Tokenizer", {
     });
 
     IT("still lexes a lone minus as invalid", {
-        Tokenizer Tok("- 6px", "test.lustre");
+        Tokenizer Tok("- 6px", "test.cosmos");
 
         const Token T1 = Tok.NextToken();
         ASSERT_TRUE(T1.Kind == TokenKind::Invalid && T1.Text == "-");
     });
 
     IT("lexes variable declarations and var() references", {
-        Tokenizer Tok("--color-primary: #E8593C; var(--color-primary)", "test.lustre");
+        Tokenizer Tok("--color-primary: #E8593C; var(--color-primary)", "test.cosmos");
 
         const Token T1 = Tok.NextToken();
         ASSERT_TRUE(T1.Kind == TokenKind::VariableName && T1.Text == "color-primary");
@@ -86,7 +86,7 @@ DESCRIBE("Tokenizer", {
     });
 
     IT("lexes pseudo-classes and :root", {
-        Tokenizer Tok(":hover :root", "test.lustre");
+        Tokenizer Tok(":hover :root", "test.cosmos");
 
         const Token T1 = Tok.NextToken();
         ASSERT_TRUE(T1.Kind == TokenKind::PseudoClass && T1.Text == "hover");
@@ -94,18 +94,18 @@ DESCRIBE("Tokenizer", {
         const Token T2 = Tok.NextToken();
         ASSERT_TRUE(T2.Kind == TokenKind::PseudoClass && T2.Text == "root");
         // `:root` lexes as a pseudo-class-shaped token; the parser gives it
-        // special meaning at the top level (docs/lustre_core_spec.md §1.4).
+        // special meaning at the top level (docs/cosmos_core_spec.md §1.4).
     });
 
     IT("skips block comments but not their content", {
-        Tokenizer Tok("/* a comment { with braces } */ .card { }", "test.lustre");
+        Tokenizer Tok("/* a comment { with braces } */ .card { }", "test.cosmos");
 
         const Token T1 = Tok.NextToken();
         ASSERT_TRUE(T1.Kind == TokenKind::ClassName && T1.Text == "card"); // comment fully skipped
     });
 
     IT("lexes string literals", {
-        Tokenizer Tok("\"assets/fonts/body.ttf\"", "test.lustre");
+        Tokenizer Tok("\"assets/fonts/body.ttf\"", "test.cosmos");
 
         const Token T1 = Tok.NextToken();
         ASSERT_TRUE(T1.Kind == TokenKind::StringLiteral && T1.Text == "assets/fonts/body.ttf");

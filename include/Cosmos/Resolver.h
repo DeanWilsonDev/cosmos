@@ -1,18 +1,18 @@
 #pragma once
 
-#include "Lustre/Ast.h"
-#include "Lustre/ResolvedStyle.h"
+#include "Cosmos/Ast.h"
+#include "Cosmos/ResolvedStyle.h"
 
 #include <string>
 #include <string_view>
 #include <vector>
 
-namespace Lustre {
+namespace Cosmos {
 
 // Backend/host-agnostic view onto one element of whatever real render tree
 // the host owns (an Iris `IrisComponent`/mounted-widget tree, in practice).
 // A host adapter implements this over its own node type; the resolver never
-// depends on Iris or any backend directly (docs/lustre_core_spec.md §0 goal
+// depends on Iris or any backend directly (docs/cosmos_core_spec.md §0 goal
 // 4). Mirrors the abstraction-point pattern `iris`'s own
 // IHostLanguageTokenizer already uses for the same reason.
 class IStyleTarget {
@@ -30,7 +30,7 @@ public:
     // being styled. Descendant-selector ancestor walks (§1.2) stop climbing
     // once they reach a node where this is true -- a component's own
     // stylesheet can select down to and including its own root, never past
-    // it. Callers resolving `global.lustre` (which has no "own subtree" to
+    // it. Callers resolving `global.cosmos` (which has no "own subtree" to
     // be bounded by, §1.2) should pass Unbounded=true to Resolve() below,
     // which makes the walk ignore this entirely.
     virtual bool IsComponentRoot() const = 0;
@@ -38,9 +38,9 @@ public:
     virtual const IStyleTarget* Parent() const = 0;
 };
 
-// The two-layer cascade (§1.3): a stylesheet parsed from global.lustre, and
-// the component's own paired Name.lustre. Either may be null (a project
-// might have no global.lustre yet; not every component needs its own
+// The two-layer cascade (§1.3): a stylesheet parsed from global.cosmos, and
+// the component's own paired Name.cosmos. Either may be null (a project
+// might have no global.cosmos yet; not every component needs its own
 // styles).
 struct StylesheetSet {
     const Stylesheet* Global{nullptr};
@@ -56,9 +56,9 @@ struct ResolveDiagnostic {
 // reuse across many Resolve() calls.
 class Resolver {
 public:
-    // Unbounded should be true only when Sheets.Component *is* global.lustre
+    // Unbounded should be true only when Sheets.Component *is* global.cosmos
     // itself (i.e. Target's whole subtree is being matched against
-    // global.lustre, which has no component-boundary restriction, §1.2).
+    // global.cosmos, which has no component-boundary restriction, §1.2).
     // For an ordinary component's own stylesheet, leave it false so
     // ancestor walks stop at Target's own component root.
     ResolvedStyle Resolve(const IStyleTarget& Target, const StylesheetSet& Sheets, bool Unbounded,
@@ -68,10 +68,10 @@ public:
 // §1.1's closed mapping table, exposed for callers that need it directly
 // (e.g. a host adapter building an IStyleTarget). Returns "" for a name
 // outside the five Core primitives.
-std::string_view PrimitiveTagForSelector(std::string_view LustreSelectorName);
+std::string_view PrimitiveTagForSelector(std::string_view CosmosSelectorName);
 
 // §1.7: resolves Target against both cascade layers (§1.3) into one merged ResolvedStyle --
-// global.lustre Unbounded, the component's own file bounded to Target's own component root,
+// global.cosmos Unbounded, the component's own file bounded to Target's own component root,
 // composed correctly in one call (Resolver::Resolve() alone can't express differing
 // Unbounded per layer, see §1.7's own note) -- then fills any still-unset `color`/`font`
 // from the nearest ancestor (walking Target.Parent()) that sets it. This is CSS's own
@@ -80,10 +80,10 @@ std::string_view PrimitiveTagForSelector(std::string_view LustreSelectorName);
 // selector-boundary rule -- inheritance is value propagation down an already-matched tree,
 // not selector matching, so it isn't bounded by IsComponentRoot()). Pseudo-class overlays
 // (Hover/Active/Disabled) never participate: they're resolved once, statically, per
-// element, and Lustre has no live per-frame recomputation of a widget's actual interaction
+// element, and Cosmos has no live per-frame recomputation of a widget's actual interaction
 // state to make a parent's :hover value flow dynamically into a child's the way real CSS
 // would.
 ResolvedStyle ResolveStyle(const IStyleTarget& Target, const StylesheetSet& Sheets,
                             std::vector<ResolveDiagnostic>& OutDiagnostics);
 
-} // namespace Lustre
+} // namespace Cosmos

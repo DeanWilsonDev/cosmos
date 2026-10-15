@@ -1,17 +1,17 @@
 #include "CompletionContext.h"
 
-#include "Lustre/Tokenizer.h"
+#include "Cosmos/Tokenizer.h"
 
-namespace LustreLsp {
+namespace CosmosLsp {
 
 namespace {
 
-std::vector<Lustre::Token> TokenizeAll(std::string_view Source) {
-    Lustre::Tokenizer          Tok(Source, "");
-    std::vector<Lustre::Token> Tokens;
+std::vector<Cosmos::Token> TokenizeAll(std::string_view Source) {
+    Cosmos::Tokenizer          Tok(Source, "");
+    std::vector<Cosmos::Token> Tokens;
     for (;;) {
-        Lustre::Token T = Tok.NextToken();
-        const bool IsEof = T.Kind == Lustre::TokenKind::EndOfFile;
+        Cosmos::Token T = Tok.NextToken();
+        const bool IsEof = T.Kind == Cosmos::TokenKind::EndOfFile;
         Tokens.push_back(std::move(T));
         if (IsEof) {
             break;
@@ -21,19 +21,19 @@ std::vector<Lustre::Token> TokenizeAll(std::string_view Source) {
 }
 
 // How many source columns a token occupies, including the punctuation
-// Lustre::Token::Text itself doesn't carry (ClassName/PseudoClass/VariableName strip
+// Cosmos::Token::Text itself doesn't carry (ClassName/PseudoClass/VariableName strip
 // their leading `.`/`:`/`--`, StringLiteral strips its quotes — see Tokenizer.cpp).
-std::size_t TokenDisplayLength(const Lustre::Token& T) {
+std::size_t TokenDisplayLength(const Cosmos::Token& T) {
     switch (T.Kind) {
-    case Lustre::TokenKind::ClassName:
-    case Lustre::TokenKind::PseudoClass: return T.Text.size() + 1;
-    case Lustre::TokenKind::VariableName: return T.Text.size() + 2;
-    case Lustre::TokenKind::StringLiteral: return T.Text.size() + 2;
+    case Cosmos::TokenKind::ClassName:
+    case Cosmos::TokenKind::PseudoClass: return T.Text.size() + 1;
+    case Cosmos::TokenKind::VariableName: return T.Text.size() + 2;
+    case Cosmos::TokenKind::StringLiteral: return T.Text.size() + 2;
     default: return T.Text.size();
     }
 }
 
-bool StartsAtOrBefore(const Lustre::SourceLocation& Loc, std::uint32_t Line, std::uint32_t Column) {
+bool StartsAtOrBefore(const Cosmos::SourceLocation& Loc, std::uint32_t Line, std::uint32_t Column) {
     return Loc.Line < Line || (Loc.Line == Line && Loc.Column <= Column);
 }
 
@@ -46,27 +46,27 @@ CompletionContext ClassifyCompletionContext(std::string_view Source, std::uint32
     bool        JustSawVarKeyword = false;
     int         VarParenDepth = 0;
 
-    for (const Lustre::Token& T : TokenizeAll(Source)) {
-        if (T.Kind == Lustre::TokenKind::EndOfFile || !StartsAtOrBefore(T.Location, Line, Column)) {
+    for (const Cosmos::Token& T : TokenizeAll(Source)) {
+        if (T.Kind == Cosmos::TokenKind::EndOfFile || !StartsAtOrBefore(T.Location, Line, Column)) {
             break;
         }
 
         switch (T.Kind) {
-        case Lustre::TokenKind::OpenBrace:
+        case Cosmos::TokenKind::OpenBrace:
             ++State.Depth;
             State.Kind = CompletionContextKind::Statement;
             VarParenDepth = 0;
             break;
-        case Lustre::TokenKind::CloseBrace:
+        case Cosmos::TokenKind::CloseBrace:
             State.Depth = State.Depth > 0 ? State.Depth - 1 : 0;
             State.Kind = CompletionContextKind::Statement;
             VarParenDepth = 0;
             break;
-        case Lustre::TokenKind::Semicolon:
+        case Cosmos::TokenKind::Semicolon:
             State.Kind = CompletionContextKind::Statement;
             VarParenDepth = 0;
             break;
-        case Lustre::TokenKind::Colon:
+        case Cosmos::TokenKind::Colon:
             // A pseudo-class colon (`:hover`) is lexed as its own PseudoClass token
             // (Tokenizer.cpp's NextToken — a bare Colon token is only ever a
             // property/variable declaration's separator), so this unconditionally
@@ -76,19 +76,19 @@ CompletionContext ClassifyCompletionContext(std::string_view Source, std::uint32
                 State.Property = LastIdentifierText;
             }
             break;
-        case Lustre::TokenKind::VarKeyword: JustSawVarKeyword = true; continue;
-        case Lustre::TokenKind::OpenParen:
+        case Cosmos::TokenKind::VarKeyword: JustSawVarKeyword = true; continue;
+        case Cosmos::TokenKind::OpenParen:
             if (JustSawVarKeyword) {
                 ++VarParenDepth;
             }
             break;
-        case Lustre::TokenKind::CloseParen:
+        case Cosmos::TokenKind::CloseParen:
             if (VarParenDepth > 0) {
                 --VarParenDepth;
             }
             break;
-        case Lustre::TokenKind::Identifier:
-        case Lustre::TokenKind::RootKeyword: LastIdentifierText = T.Text; break;
+        case Cosmos::TokenKind::Identifier:
+        case Cosmos::TokenKind::RootKeyword: LastIdentifierText = T.Text; break;
         default: break;
         }
         JustSawVarKeyword = false;
@@ -100,9 +100,9 @@ CompletionContext ClassifyCompletionContext(std::string_view Source, std::uint32
     return State;
 }
 
-std::optional<Lustre::Token> TokenAtPosition(std::string_view Source, std::uint32_t Line, std::uint32_t Column) {
-    for (const Lustre::Token& T : TokenizeAll(Source)) {
-        if (T.Kind == Lustre::TokenKind::EndOfFile) {
+std::optional<Cosmos::Token> TokenAtPosition(std::string_view Source, std::uint32_t Line, std::uint32_t Column) {
+    for (const Cosmos::Token& T : TokenizeAll(Source)) {
+        if (T.Kind == Cosmos::TokenKind::EndOfFile) {
             break;
         }
         if (T.Location.Line != Line) {
@@ -116,8 +116,8 @@ std::optional<Lustre::Token> TokenAtPosition(std::string_view Source, std::uint3
     return std::nullopt;
 }
 
-std::vector<const Lustre::VariableDeclaration*> CollectInScopeVariables(const Lustre::Stylesheet& Sheet) {
-    std::vector<const Lustre::VariableDeclaration*> Result;
+std::vector<const Cosmos::VariableDeclaration*> CollectInScopeVariables(const Cosmos::Stylesheet& Sheet) {
+    std::vector<const Cosmos::VariableDeclaration*> Result;
     if (Sheet.Root) {
         for (const auto& V : Sheet.Root->Variables) {
             Result.push_back(&V);
@@ -189,4 +189,4 @@ std::vector<std::string_view> PropertyValueKeywords(std::string_view Property) {
     return {};
 }
 
-} // namespace LustreLsp
+} // namespace CosmosLsp
