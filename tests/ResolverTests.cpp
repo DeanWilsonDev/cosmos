@@ -418,6 +418,21 @@ DESCRIBE("Resolver", {
         ASSERT_TRUE(*Style.Hover->ScrollbarThumbColor == (Color{0x4C, 0x52, 0x87, 0xFF}));
     });
 
+    IT("resolves selection-color", {
+        const auto Sheet = ParseOrFail(".x { selection-color: #C8E64C66; }", "test.cosmos");
+        REQUIRE_TRUE(Sheet.has_value());
+
+        FakeElement Value("x", "Scroll", nullptr, /*ComponentRoot=*/true);
+
+        Resolver                       R;
+        std::vector<ResolveDiagnostic> Diagnostics;
+        const ResolvedStyle Style = R.Resolve(Value, StylesheetSet{nullptr, &*Sheet}, false, Diagnostics);
+
+        REQUIRE_TRUE(Style.SelectionColor.has_value());
+        ASSERT_TRUE(*Style.SelectionColor == (Color{0xC8, 0xE6, 0x4C, 0x66}));
+        ASSERT_TRUE(Diagnostics.empty());
+    });
+
     IT("resolves scrollbar-width as a length", {
         const auto Sheet = ParseOrFail(".x { scrollbar-width: 6px; }", "test.cosmos");
         REQUIRE_TRUE(Sheet.has_value());

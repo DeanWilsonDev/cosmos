@@ -147,7 +147,7 @@ const std::vector<std::string_view> kPropertyNames{
     "line-width",       "point-radius",                "hover-point-radius",
     "area-opacity",     "bar-gap",                     "bar-radius",
     "donut-thickness",  "segment-gap",                 "appear-duration",
-    "change-duration",
+    "change-duration",  "selection-color",
 };
 
 const std::vector<std::string_view> kPrimitiveSelectorNames{

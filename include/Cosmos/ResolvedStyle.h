@@ -169,6 +169,7 @@ struct ResolvedStyle {
     std::optional<Color> ScrollbarThumbColor;
     std::optional<Color> ScrollbarTrackColor;
     std::optional<float> ScrollbarWidthLogical;
+    std::optional<Color> SelectionColor;
 };
 
 } // namespace Cosmos

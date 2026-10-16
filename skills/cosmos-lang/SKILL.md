@@ -156,7 +156,10 @@ the way to make a `<Scroll>` below a header end at its parent's bottom
 edge), `scrollbar-color: <thumb> [<track>]` and `scrollbar-width:
 <length>` (`<Scroll>`/`<TextArea>`; no thumb is drawn until both a thumb
 colour and a width are set; a `:hover` `scrollbar-color` applies while the
-pointer is over the panel).
+pointer is over the panel), `selection-color: <color>` (the highlight behind
+selected text: a `<TextArea>`'s or `<Input>`'s own selection, or every
+`<Text>` inside a `<Frame selectable>`/`<Scroll selectable>`; use a
+translucent colour, as it draws under the text).
 
 **Stubbed (parsed into the IR, not applied by any backend yet):** `width`,
 `height`, `transform: scale(<number>)`, most non-`background-color`
