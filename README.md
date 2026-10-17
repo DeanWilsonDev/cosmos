@@ -61,7 +61,8 @@ cmake --build build -j"$(nproc)"
 ```
 
 This builds the `cosmos` static library, `cosmos_lsp` (the LSP server), and both test
-executables. Run the test suites with:
+executables. A project that fetches Cosmos builds only the library unless it sets
+`COSMOS_BUILD_LSP` or `COSMOS_BUILD_TESTS` on. Run the test suites with:
 
 ```sh
 ./build/tests/test_cosmos

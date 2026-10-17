@@ -19,6 +19,15 @@ if(NOT CMAKE_BUILD_TYPE)
 endif()
 
 # ---------------------------------------------------------------------------
+# Tests and the LSP server build by default only when Cosmos is the top-level
+# project, so a consumer fetching Cosmos for the `cosmos` library doesn't also
+# compile test_cosmos, cosmos_lsp or test_cosmos_lsp. Set either option ON to
+# build them anyway.
+# ---------------------------------------------------------------------------
+option(COSMOS_BUILD_TESTS "Build test_cosmos (and test_cosmos_lsp with COSMOS_BUILD_LSP)" ${PROJECT_IS_TOP_LEVEL})
+option(COSMOS_BUILD_LSP "Build cosmos_lsp" ${PROJECT_IS_TOP_LEVEL})
+
+# ---------------------------------------------------------------------------
 # Cimmerian — the ecosystem's own BDD-style test framework, vendored as a git
 # submodule the same way `iris` does. No CIMMERIAN_VISUAL_PLATFORM/
 # CIMMERIAN_ENABLE_* override needed here (an earlier commit forced
@@ -70,38 +79,44 @@ target_compile_features(cosmos PUBLIC cxx_std_26)
 # cosmos_lsp_tests can link the real implementation without also linking a second
 # `main()`.
 # ---------------------------------------------------------------------------
-add_library(cosmos_lsp_lib STATIC
-    tools/cosmos-lsp/Server.cpp
-    tools/cosmos-lsp/CompletionContext.cpp
-    tools/cosmos-lsp/JsonRpc.cpp)
-target_include_directories(cosmos_lsp_lib PUBLIC tools/cosmos-lsp)
-target_link_libraries(cosmos_lsp_lib PUBLIC cosmos amanuensis)
+if(COSMOS_BUILD_LSP)
+    add_library(cosmos_lsp_lib STATIC
+        tools/cosmos-lsp/Server.cpp
+        tools/cosmos-lsp/CompletionContext.cpp
+        tools/cosmos-lsp/JsonRpc.cpp)
+    target_include_directories(cosmos_lsp_lib PUBLIC tools/cosmos-lsp)
+    target_link_libraries(cosmos_lsp_lib PUBLIC cosmos amanuensis)
 
-add_executable(cosmos_lsp tools/cosmos-lsp/main.cpp)
-target_link_libraries(cosmos_lsp PRIVATE cosmos_lsp_lib)
+    add_executable(cosmos_lsp tools/cosmos-lsp/main.cpp)
+    target_link_libraries(cosmos_lsp PRIVATE cosmos_lsp_lib)
+endif()
 
 # ---------------------------------------------------------------------------
 # Tests — one Cimmerian-based executable, matching `iris`'s
 # DESCRIBE/IT/ASSERT_* + auto-registration convention (see that repo's
 # CLAUDE.md "Build and test" section).
 # ---------------------------------------------------------------------------
-add_executable(test_cosmos
-    tests/TestMain.cpp
-    tests/TokenizerTests.cpp
-    tests/ParserTests.cpp
-    tests/ResolverTests.cpp
-    tests/InheritanceTests.cpp)
+if(COSMOS_BUILD_TESTS)
+    add_executable(test_cosmos
+        tests/TestMain.cpp
+        tests/TokenizerTests.cpp
+        tests/ParserTests.cpp
+        tests/ResolverTests.cpp
+        tests/InheritanceTests.cpp)
 
-target_link_libraries(test_cosmos PRIVATE cosmos cimmerian)
-set_target_properties(test_cosmos PROPERTIES
-    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tests")
+    target_link_libraries(test_cosmos PRIVATE cosmos cimmerian)
+    set_target_properties(test_cosmos PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tests")
+endif()
 
-add_executable(test_cosmos_lsp
-    tools/cosmos-lsp/tests/TestMain.cpp
-    tools/cosmos-lsp/tests/JsonRpcTests.cpp
-    tools/cosmos-lsp/tests/CompletionContextTests.cpp
-    tools/cosmos-lsp/tests/ServerTests.cpp)
+if(COSMOS_BUILD_TESTS AND COSMOS_BUILD_LSP)
+    add_executable(test_cosmos_lsp
+        tools/cosmos-lsp/tests/TestMain.cpp
+        tools/cosmos-lsp/tests/JsonRpcTests.cpp
+        tools/cosmos-lsp/tests/CompletionContextTests.cpp
+        tools/cosmos-lsp/tests/ServerTests.cpp)
 
-target_link_libraries(test_cosmos_lsp PRIVATE cosmos_lsp_lib cimmerian)
-set_target_properties(test_cosmos_lsp PROPERTIES
-    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools/cosmos-lsp/tests")
+    target_link_libraries(test_cosmos_lsp PRIVATE cosmos_lsp_lib cimmerian)
+    set_target_properties(test_cosmos_lsp PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools/cosmos-lsp/tests")
+endif()
