@@ -16,7 +16,7 @@ visual properties, transitions — resolved down to concrete values per renderin
 
 Iris Core deliberately does not define Cosmos's syntax, cascade rules, or how its properties
 map onto backend-specific style structs (Penumbra's `BoxStyle`/`ButtonStyle`/etc., or a future
-Umbra Engine backend's own equivalents) — see `iris`'s `docs/iris_core_spec.md` §4/§8 and
+Umbra Engine backend's own equivalents) — see `chaos`'s `docs/chaos_core_spec.md` §4/§8 and
 `docs/iris_handoff.md` §4. That is Cosmos's own design problem, scoped here instead.
 
 What Iris Core already fixes, and Cosmos must live within:
