@@ -174,9 +174,10 @@ shorthand), `z-index: auto|<integer>` (name levels with variables, e.g.
 Penumbra's layout, painting and input for these are still being built.
 
 **Container-only property guard:** `display`, `flex-direction`, `gap`,
-`align-items` are **rejected with a diagnostic** (not silently resolved)
-when applied to a leaf primitive (`Image`/`Text`/`Input`) rather than a
-container (`Frame`/`Grid`/`Scroll`/`Inline`). This was a real bug hit in a
+`align-items` and `justify-content` are **rejected with a diagnostic** (not
+silently resolved) when applied to a leaf (`Image`/`Text`/`Input`/`TextArea`,
+and the chart primitives, whose children are data) rather than a container
+(`Frame`/`Grid`/`Scroll`/`Inline`). An unknown tag counts as a container. This was a real bug hit in a
 consumer project — check container vs. leaf before reaching for a layout
 property.
 
@@ -215,7 +216,7 @@ component HealthBar(props: HealthBarProps) {
 | Undefined variable | `var(--x)` not declared globally or in current scope |
 | Duplicate selector | Two rule blocks with an identical selector in one file |
 | Compound tag+class selector | `Frame.card { }` |
-| Container-only property on a leaf | `display`/`flex-direction`/`gap`/`align-items` on `Image`/`Text`/`Input` |
+| Container-only property on a leaf | `display`/`flex-direction`/`gap`/`align-items`/`justify-content` on a leaf (`Image`/`Text`/`Input`/`TextArea`/charts) |
 
 **Deliberately not diagnosed:** component-boundary crossing (matches
 nothing, silently), general property-applicability (e.g. `frame {
