@@ -80,6 +80,31 @@ struct Length {
     friend bool operator==(const Length&, const Length&) = default;
 };
 
+// CSS's position. Static, the initial value, is normal layout, where the offsets do
+// nothing. Penumbra does the layout; Cosmos only says which scheme.
+enum class Position { Static, Relative, Absolute, Fixed, Sticky };
+
+// CSS's pointer-events. None lets the pointer through to whatever is under the element.
+enum class PointerEvents { Auto, None };
+
+// One of top, right, bottom and left: a length, or `auto`, CSS's initial value. Auto is
+// kept rather than left unset so a later rule, a pseudo-class overlay or @starting-style
+// can set an offset back to it. A percentage is of the containing block's size.
+struct Offset {
+    bool   Auto{false};
+    Length Value; // unused when Auto
+
+    friend bool operator==(const Offset&, const Offset&) = default;
+};
+
+// z-index: `auto`, CSS's initial value, or an integer stack level, negative included.
+struct StackLevel {
+    bool Auto{false};
+    int  Level{0}; // unused when Auto
+
+    friend bool operator==(const StackLevel&, const StackLevel&) = default;
+};
+
 // A property whose value an `attr()` names: the backend reads the element's own prop
 // called Attribute and sets Property from it, as a number in that property's own unit
 // (logical pixels for a length). Cosmos can't know the value; it only says where it
@@ -160,6 +185,16 @@ struct ResolvedStyle {
 
     std::optional<float> FlexGrow;
     std::optional<float> Opacity; // 0 to 1, the whole element and everything in it
+
+    // Unset means CSS's initial value: static, auto offsets, auto z-index and, once no
+    // ancestor sets it either, pointer-events: auto.
+    std::optional<Position>      PositionMode;
+    std::optional<Offset>        Top;
+    std::optional<Offset>        Right;
+    std::optional<Offset>        Bottom;
+    std::optional<Offset>        Left;
+    std::optional<StackLevel>    ZIndex;
+    std::optional<PointerEvents> PointerEventsMode; // inherited, as in CSS
 
     // The properties set by attr(), which have no value here until the backend reads
     // the element's props. A property is either bound here or set above, never both.

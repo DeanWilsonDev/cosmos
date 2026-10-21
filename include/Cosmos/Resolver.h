@@ -73,10 +73,11 @@ std::string_view PrimitiveTagForSelector(std::string_view CosmosSelectorName);
 // §1.7: resolves Target against both cascade layers (§1.3) into one merged ResolvedStyle --
 // global.cosmos Unbounded, the component's own file bounded to Target's own component root,
 // composed correctly in one call (Resolver::Resolve() alone can't express differing
-// Unbounded per layer, see §1.7's own note) -- then fills any still-unset `color`/`font`
-// from the nearest ancestor (walking Target.Parent()) that sets it. This is CSS's own
-// inheritance model, deliberately scoped to exactly those two properties; every other field
-// stays non-inherited, matching real CSS. Crosses component boundaries (unlike §1.2's
+// Unbounded per layer, see §1.7's own note) -- then fills any still-unset `color`,
+// `font-family`, `font-size`, `font-style` or `pointer-events` from the nearest ancestor
+// (walking Target.Parent()) that sets it. This is CSS's own inheritance model, deliberately
+// scoped to exactly those properties; every other field stays non-inherited, matching real
+// CSS. Crosses component boundaries (unlike §1.2's
 // selector-boundary rule -- inheritance is value propagation down an already-matched tree,
 // not selector matching, so it isn't bounded by IsComponentRoot()). Pseudo-class overlays
 // (Hover/Active/Disabled) never participate: they're resolved once, statically, per

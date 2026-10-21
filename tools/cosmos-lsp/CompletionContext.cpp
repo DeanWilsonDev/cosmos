@@ -147,7 +147,10 @@ const std::vector<std::string_view> kPropertyNames{
     "line-width",       "point-radius",                "hover-point-radius",
     "area-opacity",     "bar-gap",                     "bar-radius",
     "donut-thickness",  "segment-gap",                 "appear-duration",
-    "change-duration",  "selection-color",
+    "change-duration",  "selection-color",             "position",
+    "top",              "right",                       "bottom",
+    "left",             "inset",                       "z-index",
+    "pointer-events",
 };
 
 const std::vector<std::string_view> kPrimitiveSelectorNames{
@@ -185,6 +188,16 @@ std::vector<std::string_view> PropertyValueKeywords(std::string_view Property) {
     }
     if (Property == "transition") {
         return {"linear", "ease", "ease-in", "ease-out", "ease-in-out"};
+    }
+    if (Property == "position") {
+        return {"static", "relative", "absolute", "fixed", "sticky"};
+    }
+    if (Property == "pointer-events") {
+        return {"auto", "none"};
+    }
+    if (Property == "top" || Property == "right" || Property == "bottom" || Property == "left" ||
+        Property == "inset" || Property == "z-index") {
+        return {"auto"};
     }
     return {};
 }

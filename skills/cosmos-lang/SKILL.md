@@ -118,12 +118,14 @@ fallback.
 | `vw`/`vh` | Application window's current logical size | real |
 | `rem` / `em` | — | **stubbed**, no root-font-size convention exists yet |
 
-`%`, `vw` and `vh` only work on `width`, `height`, `min-width` and `max-width`,
-and are resolved at layout time, so they follow resizes. Anywhere else they're
+`%`, `vw` and `vh` only work on `width`, `height`, `min-width`, `max-width` and
+the offsets (`top`, `right`, `bottom`, `left`, `inset`, where `%` is of the
+containing block), and are resolved at layout time, so they follow resizes. Anywhere else they're
 a resolve diagnostic and the declaration is dropped. `width: 600px; max-width:
 100%;` is the way to write a dialog panel that shrinks in a narrow window.
 
-Only `margin` takes a negative length (`margin: 0px 0px 0px -6px;`), which pulls
+Only `margin` and the offsets take a negative length. A negative offset moves an
+element the other way; a negative margin (`margin: 0px 0px 0px -6px;`) pulls
 an element past its parent's content edge, for example so a button's hover
 padding bleeds out while its text lines up with the content above it. A negative
 length on any other property is a resolve diagnostic, and the declaration is
@@ -163,7 +165,13 @@ translucent colour, as it draws under the text).
 
 **Stubbed (parsed into the IR, not applied by any backend yet):** `width`,
 `height`, `transform: scale(<number>)`, most non-`background-color`
-pseudo-class-scoped properties on non-Button widgets.
+pseudo-class-scoped properties on non-Button widgets, and positioning, which
+copies CSS: `position: static|relative|absolute|fixed|sticky` (default
+`static`), `top`/`right`/`bottom`/`left` (`auto` or a length, each also
+bindable with `attr(name)`, e.g. `left: attr(x)`), `inset` (their 1–4 value
+shorthand), `z-index: auto|<integer>` (name levels with variables, e.g.
+`:root { --z-modal: 100; }`) and `pointer-events: auto|none` (inherits).
+Penumbra's layout, painting and input for these are still being built.
 
 **Container-only property guard:** `display`, `flex-direction`, `gap`,
 `align-items` are **rejected with a diagnostic** (not silently resolved)

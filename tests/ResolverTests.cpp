@@ -3,6 +3,8 @@
 #include "Cosmos/Parser.h"
 #include "Cosmos/Resolver.h"
 
+#include <array>
+
 using namespace Cosmos;
 
 namespace {
@@ -36,6 +38,13 @@ std::optional<Stylesheet> ParseOrFail(const std::string& Source, const std::stri
     }
     return std::move(Result.Sheet);
 }
+
+using EdgeOffsets = std::array<std::optional<Offset>, 4>;
+
+// Top, right, bottom and left, in CSS's shorthand order.
+EdgeOffsets Edges(const ResolvedStyle& Style) { return {Style.Top, Style.Right, Style.Bottom, Style.Left}; }
+
+Offset Px(float Value) { return Offset{.Value = {Value, LengthUnit::Px}}; }
 
 } // namespace
 
@@ -1142,5 +1151,207 @@ series { color: #6193FF; }
         ASSERT_FALSE(Style.Chart.BarGap.has_value());
         ASSERT_FALSE(Style.Chart.SegmentGap.has_value());
         ASSERT_EQUAL(Diagnostics.size(), std::size_t{2});
+    });
+
+    IT("resolves every position keyword, and leaves position unset where no rule sets it", {
+        const auto Sheet = ParseOrFail(R"(
+.a { position: static; }
+.b { position: relative; }
+.c { position: absolute; }
+.d { position: fixed; }
+.e { position: sticky; }
+)", "test.cosmos");
+        REQUIRE_TRUE(Sheet.has_value());
+
+        Resolver                       R;
+        std::vector<ResolveDiagnostic> Diagnostics;
+        auto PositionOf = [&](const char* ClassName) {
+            FakeElement Element(ClassName, "Frame", nullptr, /*ComponentRoot=*/true);
+            return R.Resolve(Element, StylesheetSet{nullptr, &*Sheet}, false, Diagnostics).PositionMode;
+        };
+
+        ASSERT_TRUE(PositionOf("a") == Position::Static);
+        ASSERT_TRUE(PositionOf("b") == Position::Relative);
+        ASSERT_TRUE(PositionOf("c") == Position::Absolute);
+        ASSERT_TRUE(PositionOf("d") == Position::Fixed);
+        ASSERT_TRUE(PositionOf("e") == Position::Sticky);
+        ASSERT_FALSE(PositionOf("none").has_value());
+        ASSERT_TRUE(Diagnostics.empty());
+    });
+
+    IT("diagnoses an unknown position keyword and keeps the earlier value", {
+        const auto Sheet = ParseOrFail(".card { position: absolute; } .odd { position: middle; }", "test.cosmos");
+        REQUIRE_TRUE(Sheet.has_value());
+
+        FakeElement Element("card odd", "Frame", nullptr, /*ComponentRoot=*/true);
+        Resolver                       R;
+        std::vector<ResolveDiagnostic> Diagnostics;
+        const ResolvedStyle Style = R.Resolve(Element, StylesheetSet{nullptr, &*Sheet}, false, Diagnostics);
+
+        ASSERT_TRUE(Style.PositionMode == Position::Absolute);
+        REQUIRE_EQUAL(Diagnostics.size(), std::size_t{1});
+        ASSERT_TRUE(Diagnostics[0].Message.find("`position: middle`") != std::string::npos);
+    });
+
+    IT("resolves the offsets as auto or a length in any unit, negatives included", {
+        const auto Sheet =
+            ParseOrFail(".badge { top: 4px; right: -2px; bottom: 50%; left: auto; } .wide { left: 10vw; }", "test.cosmos");
+        REQUIRE_TRUE(Sheet.has_value());
+
+        FakeElement Badge("badge", "Frame", nullptr, /*ComponentRoot=*/true);
+        FakeElement Wide("wide", "Text", nullptr, /*ComponentRoot=*/true);
+        Resolver                       R;
+        std::vector<ResolveDiagnostic> Diagnostics;
+        const ResolvedStyle Style = R.Resolve(Badge, StylesheetSet{nullptr, &*Sheet}, false, Diagnostics);
+        const ResolvedStyle WideStyle = R.Resolve(Wide, StylesheetSet{nullptr, &*Sheet}, false, Diagnostics);
+
+        ASSERT_TRUE(Diagnostics.empty());
+        ASSERT_TRUE(Style.Top == (Offset{.Value = {4.0F, LengthUnit::Px}}));
+        ASSERT_TRUE(Style.Right == (Offset{.Value = {-2.0F, LengthUnit::Px}}));
+        ASSERT_TRUE(Style.Bottom == (Offset{.Value = {50.0F, LengthUnit::Percent}}));
+        ASSERT_TRUE(Style.Left == (Offset{.Auto = true}));
+        ASSERT_TRUE(WideStyle.Left == (Offset{.Value = {10.0F, LengthUnit::Vw}}));
+        ASSERT_FALSE(WideStyle.Top.has_value());
+    });
+
+    IT("expands inset like CSS's one-to-four-value shorthand", {
+        const auto Sheet = ParseOrFail(R"(
+.one { inset: 0; }
+.two { inset: 1px 2px; }
+.three { inset: 1px auto 3px; }
+.four { inset: 1px 2px 3px 4px; }
+)", "test.cosmos");
+        REQUIRE_TRUE(Sheet.has_value());
+
+        Resolver                       R;
+        std::vector<ResolveDiagnostic> Diagnostics;
+        auto StyleOf = [&](const char* ClassName) {
+            FakeElement Element(ClassName, "Frame", nullptr, /*ComponentRoot=*/true);
+            return R.Resolve(Element, StylesheetSet{nullptr, &*Sheet}, false, Diagnostics);
+        };
+        ASSERT_TRUE(Edges(StyleOf("one")) == (EdgeOffsets{Px(0), Px(0), Px(0), Px(0)}));
+        ASSERT_TRUE(Edges(StyleOf("two")) == (EdgeOffsets{Px(1), Px(2), Px(1), Px(2)}));
+        ASSERT_TRUE(Edges(StyleOf("three")) ==
+                    (EdgeOffsets{Px(1), Offset{.Auto = true}, Px(3), Offset{.Auto = true}}));
+        ASSERT_TRUE(Edges(StyleOf("four")) == (EdgeOffsets{Px(1), Px(2), Px(3), Px(4)}));
+        ASSERT_TRUE(Diagnostics.empty());
+    });
+
+    IT("diagnoses an offset that isn't auto or a length, and an inset of five values", {
+        const auto Sheet =
+            ParseOrFail(".x { top: 4px; top: middle; left: #ff0000; inset: 1px 2px 3px 4px 5px; }", "test.cosmos");
+        REQUIRE_TRUE(Sheet.has_value());
+
+        FakeElement Element("x", "Frame", nullptr, /*ComponentRoot=*/true);
+        Resolver                       R;
+        std::vector<ResolveDiagnostic> Diagnostics;
+        const ResolvedStyle Style = R.Resolve(Element, StylesheetSet{nullptr, &*Sheet}, false, Diagnostics);
+
+        ASSERT_TRUE(Style.Top == (Offset{.Value = {4.0F, LengthUnit::Px}}));
+        ASSERT_FALSE(Style.Left.has_value());
+        ASSERT_FALSE(Style.Right.has_value());
+        REQUIRE_EQUAL(Diagnostics.size(), std::size_t{3});
+        ASSERT_TRUE(Diagnostics[0].Message.find("`top: middle`") != std::string::npos);
+        ASSERT_TRUE(Diagnostics[1].Message.find("`left: #ff0000`") != std::string::npos);
+        ASSERT_TRUE(Diagnostics[2].Message.find("`inset: 1px 2px 3px 4px 5px`") != std::string::npos);
+    });
+
+    IT("binds the offsets through attr(), and a later inset replaces the bindings", {
+        const auto Sheet = ParseOrFail(R"(
+.ghost { position: fixed; left: attr(x); top: attr(y); }
+.pinned { inset: 0; }
+)", "test.cosmos");
+        REQUIRE_TRUE(Sheet.has_value());
+
+        FakeElement Ghost("ghost", "Frame", nullptr, /*ComponentRoot=*/true);
+        FakeElement Pinned("ghost pinned", "Frame", nullptr, /*ComponentRoot=*/true);
+        Resolver                       R;
+        std::vector<ResolveDiagnostic> Diagnostics;
+        const ResolvedStyle GhostStyle = R.Resolve(Ghost, StylesheetSet{nullptr, &*Sheet}, false, Diagnostics);
+        const ResolvedStyle PinnedStyle = R.Resolve(Pinned, StylesheetSet{nullptr, &*Sheet}, false, Diagnostics);
+
+        ASSERT_TRUE(Diagnostics.empty());
+        ASSERT_FALSE(GhostStyle.Left.has_value());
+        ASSERT_FALSE(GhostStyle.Top.has_value());
+        REQUIRE_EQUAL(GhostStyle.AttrBindings.size(), std::size_t{2});
+        ASSERT_TRUE(GhostStyle.AttrBindings[0] == (AttrBinding{"left", "x"}));
+        ASSERT_TRUE(GhostStyle.AttrBindings[1] == (AttrBinding{"top", "y"}));
+
+        ASSERT_TRUE(PinnedStyle.AttrBindings.empty());
+        ASSERT_TRUE(PinnedStyle.Left == (Offset{.Value = {0.0F, LengthUnit::Px}}));
+        ASSERT_TRUE(PinnedStyle.Top == (Offset{.Value = {0.0F, LengthUnit::Px}}));
+    });
+
+    IT("keeps an explicit auto in a :hover overlay, so it can undo the base offset", {
+        const auto Sheet = ParseOrFail(".tab { top: 2px; z-index: 1; } .tab:hover { top: auto; z-index: auto; }", "test.cosmos");
+        REQUIRE_TRUE(Sheet.has_value());
+
+        FakeElement Element("tab", "Frame", nullptr, /*ComponentRoot=*/true);
+        Resolver                       R;
+        std::vector<ResolveDiagnostic> Diagnostics;
+        const ResolvedStyle Style = R.Resolve(Element, StylesheetSet{nullptr, &*Sheet}, false, Diagnostics);
+
+        ASSERT_TRUE(Style.Top == (Offset{.Value = {2.0F, LengthUnit::Px}}));
+        REQUIRE_TRUE(Style.Hover != nullptr);
+        ASSERT_TRUE(Style.Hover->Top == (Offset{.Auto = true}));
+        ASSERT_TRUE(Style.Hover->ZIndex == (StackLevel{.Auto = true}));
+    });
+
+    IT("resolves z-index as auto or any integer, directly and through a variable", {
+        const auto Sheet = ParseOrFail(R"(
+:root { --z-modal: 100; }
+.modal { z-index: var(--z-modal); }
+.behind { z-index: -1; }
+.flat { z-index: auto; }
+)", "test.cosmos");
+        REQUIRE_TRUE(Sheet.has_value());
+
+        Resolver                       R;
+        std::vector<ResolveDiagnostic> Diagnostics;
+        auto ZIndexOf = [&](const char* ClassName) {
+            FakeElement Element(ClassName, "Frame", nullptr, /*ComponentRoot=*/true);
+            return R.Resolve(Element, StylesheetSet{nullptr, &*Sheet}, false, Diagnostics).ZIndex;
+        };
+
+        ASSERT_TRUE(ZIndexOf("modal") == (StackLevel{.Level = 100}));
+        ASSERT_TRUE(ZIndexOf("behind") == (StackLevel{.Level = -1}));
+        ASSERT_TRUE(ZIndexOf("flat") == (StackLevel{.Auto = true}));
+        ASSERT_FALSE(ZIndexOf("other").has_value());
+        ASSERT_TRUE(Diagnostics.empty());
+    });
+
+    IT("diagnoses a z-index with a fraction or a unit", {
+        const auto Sheet = ParseOrFail(".x { z-index: 1.5; } .y { z-index: 10px; }", "test.cosmos");
+        REQUIRE_TRUE(Sheet.has_value());
+
+        FakeElement Element("x y", "Frame", nullptr, /*ComponentRoot=*/true);
+        Resolver                       R;
+        std::vector<ResolveDiagnostic> Diagnostics;
+        const ResolvedStyle Style = R.Resolve(Element, StylesheetSet{nullptr, &*Sheet}, false, Diagnostics);
+
+        ASSERT_FALSE(Style.ZIndex.has_value());
+        REQUIRE_EQUAL(Diagnostics.size(), std::size_t{2});
+        ASSERT_TRUE(Diagnostics[0].Message.find("`z-index: 1.5`") != std::string::npos);
+        ASSERT_TRUE(Diagnostics[1].Message.find("`z-index: 10px`") != std::string::npos);
+    });
+
+    IT("resolves pointer-events auto and none, and diagnoses anything else", {
+        const auto Sheet = ParseOrFail(".a { pointer-events: none; } .b { pointer-events: auto; } .c { pointer-events: all; }",
+                                       "test.cosmos");
+        REQUIRE_TRUE(Sheet.has_value());
+
+        Resolver                       R;
+        std::vector<ResolveDiagnostic> Diagnostics;
+        auto PointerEventsOf = [&](const char* ClassName) {
+            FakeElement Element(ClassName, "Frame", nullptr, /*ComponentRoot=*/true);
+            return R.Resolve(Element, StylesheetSet{nullptr, &*Sheet}, false, Diagnostics).PointerEventsMode;
+        };
+
+        ASSERT_TRUE(PointerEventsOf("a") == PointerEvents::None);
+        ASSERT_TRUE(PointerEventsOf("b") == PointerEvents::Auto);
+        ASSERT_TRUE(Diagnostics.empty());
+        ASSERT_FALSE(PointerEventsOf("c").has_value());
+        REQUIRE_EQUAL(Diagnostics.size(), std::size_t{1});
+        ASSERT_TRUE(Diagnostics[0].Message.find("`pointer-events: all`") != std::string::npos);
     });
 });

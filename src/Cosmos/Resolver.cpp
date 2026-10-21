@@ -4,6 +4,7 @@
 #include <cctype>
 #include <charconv>
 #include <functional>
+#include <system_error>
 #include <unordered_map>
 
 namespace Cosmos {
@@ -130,8 +131,81 @@ bool IsRelative(const Length& L) { return L.Unit != LengthUnit::Px; }
 
 void ReportRelativeLength(const std::string& Prop, const ValuePart& Part, std::vector<ResolveDiagnostic>& Diagnostics) {
     Diagnostics.push_back(ResolveDiagnostic{"`" + Prop + ": " + *Part.Number +
-                                              "` -- only `width`, `height`, `min-width` and `max-width` take `%`, "
+                                              "` -- only `width`, `height`, `min-width`, `max-width` and the "
+                                              "offsets (`top`, `right`, `bottom`, `left`, `inset`) take `%`, "
                                               "`vw` or `vh`. Use a px length here."});
+}
+
+bool IsOffsetProperty(std::string_view Prop) {
+    return Prop == "top" || Prop == "right" || Prop == "bottom" || Prop == "left";
+}
+
+// As in CSS, a negative margin pulls an element past its parent's content edge, and a
+// negative offset moves it the other way. No other length can be negative.
+bool TakesNegativeLength(std::string_view Prop) {
+    return Prop == "margin" || Prop == "inset" || IsOffsetProperty(Prop);
+}
+
+std::optional<Offset>& OffsetField(std::string_view Prop, ResolvedStyle& Out) {
+    if (Prop == "top") {
+        return Out.Top;
+    }
+    if (Prop == "right") {
+        return Out.Right;
+    }
+    if (Prop == "bottom") {
+        return Out.Bottom;
+    }
+    return Out.Left;
+}
+
+// An offset is `auto` or a length in any unit; a percentage is of the containing block.
+std::optional<Offset> ParseOffset(const ValuePart& Part) {
+    if (Part.Literal == "auto") {
+        return Offset{.Auto = true};
+    }
+    if (const std::optional<Length> L = ParseLength(Part)) {
+        return Offset{.Auto = false, .Value = *L};
+    }
+    return std::nullopt;
+}
+
+// z-index is `auto` or a whole number, which may be negative, with no unit.
+std::optional<StackLevel> ParseStackLevel(const ValuePart& Part) {
+    if (Part.Literal == "auto") {
+        return StackLevel{.Auto = true};
+    }
+    if (!Part.Number) {
+        return std::nullopt;
+    }
+    const std::string& Text  = *Part.Number;
+    int                Level = 0;
+    const auto [End, Error]  = std::from_chars(Text.data(), Text.data() + Text.size(), Level);
+    if (Error != std::errc{} || End != Text.data() + Text.size()) {
+        return std::nullopt;
+    }
+    return StackLevel{.Auto = false, .Level = Level};
+}
+
+// A declaration as written, for a diagnostic: "`position: middle`".
+std::string Written(const std::string& Prop, const std::vector<ValuePart>& Values) {
+    std::string Text = "`" + Prop + ":";
+    for (const ValuePart& V : Values) {
+        Text += V.FollowsComma ? ", " : " ";
+        if (V.Literal) {
+            Text += *V.Literal;
+            if (V.CallArgument) {
+                Text += "(" + *V.CallArgument + ")";
+            }
+        } else if (V.Number) {
+            Text += *V.Number;
+        } else if (V.HexColor) {
+            Text += *V.HexColor;
+        } else if (V.StringValue) {
+            Text += "\"" + *V.StringValue + "\"";
+        }
+    }
+    return Text + "`";
 }
 
 std::optional<float> ParsePixels(const ValuePart& Part, const std::string& Prop,
@@ -267,6 +341,8 @@ bool ClearAttrBindableProperty(const std::string& Prop, ResolvedStyle& Out) {
         Out.BorderWidth.reset();
     } else if (Prop == "border-radius") {
         Out.BorderRadius.reset();
+    } else if (IsOffsetProperty(Prop)) {
+        OffsetField(Prop, Out).reset();
     } else {
         return false;
     }
@@ -312,18 +388,21 @@ void ApplyDeclaration(const Declaration& Decl, const VariableScope& Scope, Resol
             Diagnostics.push_back(ResolveDiagnostic{"`" + Prop + ": attr(" + *Resolved[0].AttrRef +
                                                       ")` -- attr() sets a single number, and only `width`, "
                                                       "`height`, `min-width`, `max-width`, `flex-grow`, `opacity`, "
-                                                      "`gap`, `border-width` and `border-radius` take one."});
+                                                      "`gap`, `border-width`, `border-radius`, `top`, `right`, "
+                                                      "`bottom` and `left` take one."});
             return;
         }
         Out.AttrBindings.push_back(AttrBinding{Prop, *Resolved[0].AttrRef});
         return;
     }
 
-    if (Prop != "margin") {
+    // z-index isn't a length, and checks its own sign: it takes any integer.
+    if (!TakesNegativeLength(Prop) && Prop != "z-index") {
         for (const auto& V : Resolved) {
             if (V.Number && V.Number->starts_with('-')) {
                 Diagnostics.push_back(ResolveDiagnostic{"`" + Prop + ": " + *V.Number +
-                                                          "` -- only `margin` takes a negative length."});
+                                                          "` -- only `margin`, `top`, `right`, `bottom`, `left` "
+                                                          "and `inset` take a negative length."});
                 return;
             }
         }
@@ -548,6 +627,69 @@ void ApplyDeclaration(const Declaration& Decl, const VariableScope& Scope, Resol
             return;
         }
         Out.Opacity = std::clamp(Unit == "%" ? Value / 100.0F : Value, 0.0F, 1.0F);
+    } else if (Prop == "position") {
+        static const std::unordered_map<std::string, Position> kPositions{{"static", Position::Static},
+                                                                          {"relative", Position::Relative},
+                                                                          {"absolute", Position::Absolute},
+                                                                          {"fixed", Position::Fixed},
+                                                                          {"sticky", Position::Sticky}};
+        const auto It = Resolved[0].Literal ? kPositions.find(*Resolved[0].Literal) : kPositions.end();
+        if (Resolved.size() != 1 || It == kPositions.end()) {
+            Diagnostics.push_back(ResolveDiagnostic{Written(Prop, Resolved) +
+                                                      " -- `position` takes `static`, `relative`, `absolute`, "
+                                                      "`fixed` or `sticky`."});
+            return;
+        }
+        Out.PositionMode = It->second;
+    } else if (IsOffsetProperty(Prop)) {
+        const std::optional<Offset> Parsed = Resolved.size() == 1 ? ParseOffset(Resolved[0]) : std::nullopt;
+        if (!Parsed) {
+            Diagnostics.push_back(
+                ResolveDiagnostic{Written(Prop, Resolved) + " -- `" + Prop + "` takes `auto` or a length."});
+            return;
+        }
+        OffsetField(Prop, Out) = Parsed;
+    } else if (Prop == "inset") {
+        std::vector<Offset> Parts;
+        for (const auto& V : Resolved) {
+            const std::optional<Offset> Parsed = ParseOffset(V);
+            if (!Parsed) {
+                Parts.clear();
+                break;
+            }
+            Parts.push_back(*Parsed);
+        }
+        if (Parts.empty() || Parts.size() > 4) {
+            Diagnostics.push_back(ResolveDiagnostic{Written(Prop, Resolved) +
+                                                      " -- `inset` takes one to four values, each `auto` or a "
+                                                      "length: top, right, bottom, left, as CSS's shorthand does."});
+            return;
+        }
+        // CSS's one-to-four-value order, the same as margin's: a missing right copies top,
+        // a missing bottom copies top, and a missing left copies right.
+        Out.Top    = Parts[0];
+        Out.Right  = Parts.size() > 1 ? Parts[1] : Parts[0];
+        Out.Bottom = Parts.size() > 2 ? Parts[2] : Parts[0];
+        Out.Left   = Parts.size() > 3 ? Parts[3] : *Out.Right;
+        std::erase_if(Out.AttrBindings, [](const AttrBinding& Binding) { return IsOffsetProperty(Binding.Property); });
+    } else if (Prop == "z-index") {
+        const std::optional<StackLevel> Level = Resolved.size() == 1 ? ParseStackLevel(Resolved[0]) : std::nullopt;
+        if (!Level) {
+            Diagnostics.push_back(
+                ResolveDiagnostic{Written(Prop, Resolved) + " -- `z-index` takes `auto` or an integer."});
+            return;
+        }
+        Out.ZIndex = Level;
+    } else if (Prop == "pointer-events") {
+        if (Resolved.size() == 1 && Resolved[0].Literal == "auto") {
+            Out.PointerEventsMode = PointerEvents::Auto;
+        } else if (Resolved.size() == 1 && Resolved[0].Literal == "none") {
+            Out.PointerEventsMode = PointerEvents::None;
+        } else {
+            Diagnostics.push_back(
+                ResolveDiagnostic{Written(Prop, Resolved) + " -- `pointer-events` takes `auto` or `none`."});
+            return;
+        }
     }
     // Unknown properties are silently ignored -- v1 does no
     // property-applicability validation (§6, "Deliberately not diagnosed").
@@ -806,7 +948,8 @@ ResolvedStyle ResolveStyle(const IStyleTarget& Target, const StylesheetSet& Shee
                             std::vector<ResolveDiagnostic>& OutDiagnostics) {
     ResolvedStyle Style = ResolveCascadedLayers(Target, Sheets, OutDiagnostics);
 
-    if ((!Style.TextColor || !Style.FontFamily || !Style.FontSizeLogical || !Style.FontStyleMode) &&
+    if ((!Style.TextColor || !Style.FontFamily || !Style.FontSizeLogical || !Style.FontStyleMode ||
+         !Style.PointerEventsMode) &&
         Target.Parent() != nullptr) {
         const ResolvedStyle Ancestor = ResolveStyle(*Target.Parent(), Sheets, OutDiagnostics);
         if (!Style.TextColor) {
@@ -820,6 +963,9 @@ ResolvedStyle ResolveStyle(const IStyleTarget& Target, const StylesheetSet& Shee
         }
         if (!Style.FontStyleMode) {
             Style.FontStyleMode = Ancestor.FontStyleMode;
+        }
+        if (!Style.PointerEventsMode) {
+            Style.PointerEventsMode = Ancestor.PointerEventsMode;
         }
         CombineFont(Style);
     }

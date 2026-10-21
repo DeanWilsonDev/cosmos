@@ -3,6 +3,8 @@
 #include "CompletionContext.h"
 #include "Cosmos/Parser.h"
 
+#include <algorithm>
+
 using namespace CosmosLsp;
 
 namespace {
@@ -79,5 +81,14 @@ DESCRIBE("CompletionContext", {
         const auto DisplayValues = PropertyValueKeywords("display");
         ASSERT_EQUAL(DisplayValues.size(), static_cast<std::size_t>(2));
         ASSERT_TRUE(PropertyValueKeywords("background-color").empty());
+    });
+
+    IT("offers the positioning properties and their keywords", {
+        for (const std::string_view Name : {"position", "top", "inset", "z-index", "pointer-events"}) {
+            ASSERT_TRUE(std::find(kPropertyNames.begin(), kPropertyNames.end(), Name) != kPropertyNames.end());
+        }
+        ASSERT_EQUAL(PropertyValueKeywords("position").size(), static_cast<std::size_t>(5));
+        ASSERT_EQUAL(PropertyValueKeywords("pointer-events").size(), static_cast<std::size_t>(2));
+        ASSERT_EQUAL(PropertyValueKeywords("left").size(), static_cast<std::size_t>(1));
     });
 });

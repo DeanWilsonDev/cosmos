@@ -346,4 +346,40 @@ text { font-family: "assets/fonts/body.ttf"; }
 
         ASSERT_FALSE(Style.TextDecorationLine.has_value());
     });
+
+    IT("pointer-events inherits through any depth, and a descendant's auto overrides an ancestor's none", {
+        const auto Sheet = ParseOrFail(".ghost { pointer-events: none; } .live { pointer-events: auto; }", "test.cosmos");
+        REQUIRE_TRUE(Sheet.has_value());
+
+        FakeElement Ghost("ghost", "Frame", nullptr, /*ComponentRoot=*/true);
+        FakeElement Middle("", "Frame", &Ghost);
+        FakeElement Deep("", "Text", &Middle);
+        FakeElement Live("live", "Frame", &Ghost);
+        FakeElement UnderLive("", "Text", &Live);
+
+        std::vector<ResolveDiagnostic> Diagnostics;
+        auto PointerEventsOf = [&](const FakeElement& Element) {
+            return ResolveStyle(Element, StylesheetSet{nullptr, &*Sheet}, Diagnostics).PointerEventsMode;
+        };
+
+        ASSERT_TRUE(PointerEventsOf(Deep) == PointerEvents::None);
+        ASSERT_TRUE(PointerEventsOf(Live) == PointerEvents::Auto);
+        ASSERT_TRUE(PointerEventsOf(UnderLive) == PointerEvents::Auto);
+        ASSERT_TRUE(Diagnostics.empty());
+    });
+
+    IT("position, the offsets and z-index do not inherit", {
+        const auto Sheet = ParseOrFail(".modal { position: fixed; inset: 0; z-index: 100; }", "test.cosmos");
+        REQUIRE_TRUE(Sheet.has_value());
+
+        FakeElement Modal("modal", "Frame", nullptr, /*ComponentRoot=*/true);
+        FakeElement Child("", "Frame", &Modal);
+
+        std::vector<ResolveDiagnostic> Diagnostics;
+        const ResolvedStyle Style = ResolveStyle(Child, StylesheetSet{nullptr, &*Sheet}, Diagnostics);
+
+        ASSERT_FALSE(Style.PositionMode.has_value());
+        ASSERT_FALSE(Style.Top.has_value());
+        ASSERT_FALSE(Style.ZIndex.has_value());
+    });
 });
