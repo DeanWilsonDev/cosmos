@@ -163,15 +163,20 @@ selected text: a `<TextArea>`'s or `<Input>`'s own selection, or every
 `<Text>` inside a `<Frame selectable>`/`<Scroll selectable>`; use a
 translucent colour, as it draws under the text).
 
-**Stubbed (parsed into the IR, not applied by any backend yet):** `width`,
-`height`, `transform: scale(<number>)`, most non-`background-color`
-pseudo-class-scoped properties on non-Button widgets, and positioning, which
-copies CSS: `position: static|relative|absolute|fixed|sticky` (default
+**Positioning** copies CSS, and Penumbra lays it out, paints it and routes the
+pointer as CSS does: `position: static|relative|absolute|fixed|sticky` (default
 `static`), `top`/`right`/`bottom`/`left` (`auto` or a length, each also
 bindable with `attr(name)`, e.g. `left: attr(x)`), `inset` (their 1–4 value
 shorthand), `z-index: auto|<integer>` (name levels with variables, e.g.
-`:root { --z-modal: 100; }`) and `pointer-events: auto|none` (inherits).
-Penumbra's layout, painting and input for these are still being built.
+`:root { --z-modal: 100; }`) and `pointer-events: auto|none` (inherits). An
+absolute child is placed against its nearest positioned ancestor and a fixed one
+against the window, and neither takes room in its parent's layout. Every
+primitive takes them except `Image` and `Icon`. This is how a modal or a menu
+floats over the page: a fixed, full-window frame with a high `z-index`.
+
+**Stubbed (parsed into the IR, not applied by any backend yet):** `width`,
+`height`, `transform: scale(<number>)`, and most non-`background-color`
+pseudo-class-scoped properties on non-Button widgets.
 
 **Container-only property guard:** `display`, `flex-direction`, `gap`,
 `align-items` and `justify-content` are **rejected with a diagnostic** (not
