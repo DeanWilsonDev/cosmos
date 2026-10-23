@@ -174,6 +174,23 @@ against the window, and neither takes room in its parent's layout. Every
 primitive takes them except `Image` and `Icon`. This is how a modal or a menu
 floats over the page: a fixed, full-window frame with a high `z-index`.
 
+**Colours** are hex (`#RGB`, `#RRGGBB`, `#RRGGBBAA`) or `rgb()`/`rgba()` with
+three or four comma-separated channels. Every channel, **alpha included, is a
+whole number from 0 to 255**, unlike CSS's 0-to-1 alpha: `rgba(0, 0, 0, 128)`
+is `#00000080`, and `rgba(0, 0, 0, 0.5)` is a resolve diagnostic.
+
+**`attr(name)`** takes a value from one of the element's own number props, and
+follows it as it changes. As a whole value it sets `width`, `height`,
+`min-width`, `max-width`, `flex-grow`, `opacity`, `gap`, `border-width`,
+`border-radius` and the offsets. A colour takes it per channel instead, on
+`background-color`, `background-gradient-start`/`-end`, `border-color` and
+`color`: `background-color: rgba(attr(r), attr(g), attr(b), 255);`, literal
+channels mixed in as you like. A bare `background-color: attr(fill)` is a
+diagnostic, and so is `attr()` on any other property, `box-shadow` included.
+A bound `color` doesn't inherit, so bind it on the `<Text>` itself. The colour
+form resolves in Cosmos, but penumbra-ui-backend doesn't apply it until its
+card `apply-cosmos-colour-attr-bindings` lands.
+
 **Stubbed (parsed into the IR, not applied by any backend yet):** `width`,
 `height`, `transform: scale(<number>)`, and most non-`background-color`
 pseudo-class-scoped properties on non-Button widgets.

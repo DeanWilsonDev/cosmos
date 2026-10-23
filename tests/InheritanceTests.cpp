@@ -105,6 +105,30 @@ DESCRIBE("Inheritance (§1.7)", {
         ASSERT_TRUE(Style.TextColor->B == 0xFF && Style.TextColor->R == 0x00); // .near's blue, not .far's red
     });
 
+    IT("an element that binds color through attr() neither inherits one nor passes one down", {
+        const auto Sheet = ParseOrFail(R"(
+.row { color: #FFFFFF; }
+.tile { color: rgba(attr(r), attr(g), attr(b), 255); }
+)",
+                                        "test.cosmos");
+        REQUIRE_TRUE(Sheet.has_value());
+
+        FakeElement Row("row", "Frame", nullptr, /*ComponentRoot=*/true);
+        FakeElement Tile("tile", "Frame", &Row);
+        FakeElement Label("", "Text", &Tile);
+
+        std::vector<ResolveDiagnostic> Diagnostics;
+        const ResolvedStyle TileStyle  = ResolveStyle(Tile, StylesheetSet{nullptr, &*Sheet}, Diagnostics);
+        const ResolvedStyle LabelStyle = ResolveStyle(Label, StylesheetSet{nullptr, &*Sheet}, Diagnostics);
+
+        ASSERT_TRUE(Diagnostics.empty());
+        ASSERT_FALSE(TileStyle.TextColor.has_value());
+        REQUIRE_EQUAL(TileStyle.ColorAttrBindings.size(), std::size_t{1});
+        ASSERT_TRUE(TileStyle.ColorAttrBindings[0].Property == "color");
+        ASSERT_FALSE(LabelStyle.TextColor.has_value()); // not .row's white from past the bound tile
+        ASSERT_TRUE(LabelStyle.ColorAttrBindings.empty());
+    });
+
     IT("non-inherited properties do not flow down from an ancestor", {
         const auto Sheet = ParseOrFail(".row { background-color: #FF0000; padding: 8px; }", "test.cosmos");
         REQUIRE_TRUE(Sheet.has_value());

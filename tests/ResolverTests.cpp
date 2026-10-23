@@ -46,6 +46,10 @@ EdgeOffsets Edges(const ResolvedStyle& Style) { return {Style.Top, Style.Right, 
 
 Offset Px(float Value) { return Offset{.Value = {Value, LengthUnit::Px}}; }
 
+ColorChannel Bound(const char* Attribute) { return ColorChannel{.Attribute = Attribute}; }
+
+ColorChannel Fixed(std::uint8_t Value) { return ColorChannel{.Value = Value}; }
+
 } // namespace
 
 DESCRIBE("Resolver", {
@@ -1090,6 +1094,190 @@ DESCRIBE("Resolver", {
         REQUIRE_TRUE(Style.Starting != nullptr);
         REQUIRE_EQUAL(Style.Starting->AttrBindings.size(), static_cast<std::size_t>(1));
         ASSERT_TRUE(Style.Starting->AttrBindings[0] == (AttrBinding{"flex-grow", "from"}));
+    });
+
+    IT("resolves a literal rgb() or rgba() to a colour wherever a colour goes", {
+        const auto Sheet = ParseOrFail(R"(
+.swatch {
+    background-color: rgba(232, 89, 60, 128);
+    border-color: rgb(1, 2, 3);
+    box-shadow: rgba(0, 0, 0, 170) 12px;
+}
+)", "test.cosmos");
+        REQUIRE_TRUE(Sheet.has_value());
+
+        FakeElement Element("swatch", "Frame", nullptr, /*ComponentRoot=*/true);
+        Resolver                       R;
+        std::vector<ResolveDiagnostic> Diagnostics;
+        const ResolvedStyle Style = R.Resolve(Element, StylesheetSet{nullptr, &*Sheet}, false, Diagnostics);
+
+        ASSERT_TRUE(Diagnostics.empty());
+        ASSERT_TRUE(Style.BackgroundColor == (Color{232, 89, 60, 128}));
+        ASSERT_TRUE(Style.BorderColor == (Color{1, 2, 3, 255}));
+        ASSERT_TRUE(Style.ShadowColor == (Color{0, 0, 0, 170}));
+        ASSERT_TRUE(Style.ColorAttrBindings.empty());
+    });
+
+    IT("resolves attr() channels into a colour binding, leaving the colour itself unset", {
+        const auto Sheet = ParseOrFail(R"(
+.tile {
+    background-color: rgba(attr(r), attr(g), attr(b), attr(a));
+    border-color: rgb(attr(r), 0, attr(b));
+    color: rgba(attr(r), attr(g), attr(b), 200);
+}
+)", "test.cosmos");
+        REQUIRE_TRUE(Sheet.has_value());
+
+        FakeElement Element("tile", "Frame", nullptr, /*ComponentRoot=*/true);
+        Resolver                       R;
+        std::vector<ResolveDiagnostic> Diagnostics;
+        const ResolvedStyle Style = R.Resolve(Element, StylesheetSet{nullptr, &*Sheet}, false, Diagnostics);
+
+        ASSERT_TRUE(Diagnostics.empty());
+        ASSERT_FALSE(Style.BackgroundColor.has_value());
+        ASSERT_FALSE(Style.BorderColor.has_value());
+        ASSERT_FALSE(Style.TextColor.has_value());
+        ASSERT_TRUE(Style.AttrBindings.empty());
+        REQUIRE_EQUAL(Style.ColorAttrBindings.size(), std::size_t{3});
+        ASSERT_TRUE(Style.ColorAttrBindings[0] ==
+                    (ColorAttrBinding{"background-color", Bound("r"), Bound("g"), Bound("b"), Bound("a")}));
+        ASSERT_TRUE(Style.ColorAttrBindings[1] ==
+                    (ColorAttrBinding{"border-color", Bound("r"), Fixed(0), Bound("b"), Fixed(255)}));
+        ASSERT_TRUE(Style.ColorAttrBindings[2] ==
+                    (ColorAttrBinding{"color", Bound("r"), Bound("g"), Bound("b"), Fixed(200)}));
+    });
+
+    IT("lets a later colour replace a colour binding, and a later binding replace a colour", {
+        const auto Sheet = ParseOrFail(R"(
+.tile { background-color: rgba(attr(r), attr(g), attr(b), 255); border-color: #FFFFFF; }
+.tile-fixed { background-color: #102030; border-color: rgb(attr(r), attr(g), attr(b)); }
+)", "test.cosmos");
+        REQUIRE_TRUE(Sheet.has_value());
+
+        FakeElement Element("tile tile-fixed", "Frame", nullptr, /*ComponentRoot=*/true);
+        Resolver                       R;
+        std::vector<ResolveDiagnostic> Diagnostics;
+        const ResolvedStyle Style = R.Resolve(Element, StylesheetSet{nullptr, &*Sheet}, false, Diagnostics);
+
+        ASSERT_TRUE(Diagnostics.empty());
+        ASSERT_TRUE(Style.BackgroundColor == (Color{0x10, 0x20, 0x30, 255}));
+        ASSERT_FALSE(Style.BorderColor.has_value());
+        REQUIRE_EQUAL(Style.ColorAttrBindings.size(), std::size_t{1});
+        ASSERT_TRUE(Style.ColorAttrBindings[0].Property == "border-color");
+    });
+
+    IT("binds colour channels inside pseudo-class overlays and @starting-style", {
+        const auto Sheet = ParseOrFail(R"(
+.tile {
+    background-color: #000000;
+    @starting-style { background-color: rgba(attr(r), attr(g), attr(b), 0); }
+}
+.tile:hover { background-color: rgba(attr(hr), attr(hg), attr(hb), 255); }
+)", "test.cosmos");
+        REQUIRE_TRUE(Sheet.has_value());
+
+        FakeElement Element("tile", "Frame", nullptr, /*ComponentRoot=*/true);
+        Resolver                       R;
+        std::vector<ResolveDiagnostic> Diagnostics;
+        const ResolvedStyle Style = R.Resolve(Element, StylesheetSet{nullptr, &*Sheet}, false, Diagnostics);
+
+        ASSERT_TRUE(Diagnostics.empty());
+        ASSERT_TRUE(Style.BackgroundColor == (Color{0, 0, 0, 255}));
+        ASSERT_TRUE(Style.ColorAttrBindings.empty());
+        REQUIRE_TRUE(Style.Hover != nullptr);
+        ASSERT_FALSE(Style.Hover->BackgroundColor.has_value());
+        REQUIRE_EQUAL(Style.Hover->ColorAttrBindings.size(), std::size_t{1});
+        ASSERT_TRUE(Style.Hover->ColorAttrBindings[0] ==
+                    (ColorAttrBinding{"background-color", Bound("hr"), Bound("hg"), Bound("hb"), Fixed(255)}));
+        REQUIRE_TRUE(Style.Starting != nullptr);
+        REQUIRE_EQUAL(Style.Starting->ColorAttrBindings.size(), std::size_t{1});
+        ASSERT_TRUE(Style.Starting->ColorAttrBindings[0] ==
+                    (ColorAttrBinding{"background-color", Bound("r"), Bound("g"), Bound("b"), Fixed(0)}));
+    });
+
+    IT("counts a bound gradient stop as set when pairing the gradient", {
+        const auto Sheet = ParseOrFail(R"(
+.lit {
+    background-gradient-start: rgba(attr(tr), attr(tg), attr(tb), 255);
+    background-gradient-end: rgba(attr(r), attr(g), attr(b), 255);
+}
+.half { background-gradient-start: rgb(attr(tr), attr(tg), attr(tb)); background-gradient-end: #000000; }
+.lone { background-gradient-start: rgb(attr(tr), attr(tg), attr(tb)); }
+)", "test.cosmos");
+        REQUIRE_TRUE(Sheet.has_value());
+
+        Resolver                       R;
+        std::vector<ResolveDiagnostic> Diagnostics;
+        auto StyleOf = [&](const char* ClassName) {
+            FakeElement Element(ClassName, "Frame", nullptr, /*ComponentRoot=*/true);
+            return R.Resolve(Element, StylesheetSet{nullptr, &*Sheet}, false, Diagnostics);
+        };
+
+        const ResolvedStyle Lit = StyleOf("lit");
+        REQUIRE_EQUAL(Lit.ColorAttrBindings.size(), std::size_t{2});
+        ASSERT_TRUE(Lit.ColorAttrBindings[0].Property == "background-gradient-start");
+        ASSERT_TRUE(Lit.ColorAttrBindings[1].Property == "background-gradient-end");
+
+        const ResolvedStyle Half = StyleOf("half");
+        REQUIRE_EQUAL(Half.ColorAttrBindings.size(), std::size_t{1});
+        ASSERT_TRUE(Half.ColorAttrBindings[0].Property == "background-gradient-start");
+        ASSERT_TRUE(Half.BackgroundGradientEnd == (Color{0, 0, 0, 255}));
+
+        const ResolvedStyle Lone = StyleOf("lone");
+        ASSERT_TRUE(Lone.ColorAttrBindings.empty());
+        ASSERT_FALSE(Lone.BackgroundGradientStart.has_value());
+        ASSERT_FALSE(Lone.BackgroundGradientEnd.has_value());
+        ASSERT_TRUE(Diagnostics.empty());
+    });
+
+    IT("binds a colour taken from a variable", {
+        const auto Sheet = ParseOrFail(R"(
+.tile {
+    --fill: rgba(attr(r), attr(g), attr(b), 255);
+    background-color: var(--fill);
+}
+)", "test.cosmos");
+        REQUIRE_TRUE(Sheet.has_value());
+
+        FakeElement Element("tile", "Frame", nullptr, /*ComponentRoot=*/true);
+        Resolver                       R;
+        std::vector<ResolveDiagnostic> Diagnostics;
+        const ResolvedStyle Style = R.Resolve(Element, StylesheetSet{nullptr, &*Sheet}, false, Diagnostics);
+
+        ASSERT_TRUE(Diagnostics.empty());
+        REQUIRE_EQUAL(Style.ColorAttrBindings.size(), std::size_t{1});
+        ASSERT_TRUE(Style.ColorAttrBindings[0] ==
+                    (ColorAttrBinding{"background-color", Bound("r"), Bound("g"), Bound("b"), Fixed(255)}));
+    });
+
+    IT("diagnoses colour channels out of range, and attr() channels on a colour that can't take them", {
+        const auto Sheet = ParseOrFail(R"(
+.a { box-shadow: rgba(attr(r), attr(g), attr(b), 255) 12px; }
+.b { selection-color: rgba(attr(r), attr(g), attr(b), 255); }
+.c { background-color: rgba(256, 0, 0, 255); }
+.d { background-color: rgba(0, 0, 0, 0.5); }
+.e { border-color: rgb(-1, attr(g), 0); }
+.f { background-color: attr(fill); }
+)", "test.cosmos");
+        REQUIRE_TRUE(Sheet.has_value());
+
+        Resolver R;
+        auto     DiagnosticFor = [&](const char* ClassName) {
+            FakeElement                    Element(ClassName, "Frame", nullptr, /*ComponentRoot=*/true);
+            std::vector<ResolveDiagnostic> Diagnostics;
+            const ResolvedStyle Style = R.Resolve(Element, StylesheetSet{nullptr, &*Sheet}, false, Diagnostics);
+            const bool Unset = Style.ColorAttrBindings.empty() && !Style.BackgroundColor && !Style.BorderColor &&
+                               !Style.ShadowColor && !Style.SelectionColor;
+            return Unset && Diagnostics.size() == 1 ? Diagnostics[0].Message : std::string{};
+        };
+
+        ASSERT_TRUE(DiagnosticFor("a").find("`box-shadow: rgba(attr(r), attr(g), attr(b), 255) 12px`") !=
+                    std::string::npos);
+        ASSERT_TRUE(DiagnosticFor("b").find("sets only `background-color`") != std::string::npos);
+        ASSERT_TRUE(DiagnosticFor("c").find("`background-color: rgba(256, 0, 0, 255)`") != std::string::npos);
+        ASSERT_TRUE(DiagnosticFor("d").find("whole number from 0 to 255, alpha included") != std::string::npos);
+        ASSERT_TRUE(DiagnosticFor("e").find("`border-color: rgb(-1, attr(g), 0)`") != std::string::npos);
+        ASSERT_TRUE(DiagnosticFor("f").find("`rgba(attr(r), attr(g), attr(b), attr(a))`") != std::string::npos);
     });
 
     IT("resolves the chart properties into ResolvedStyle::Chart", {

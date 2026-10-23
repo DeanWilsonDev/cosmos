@@ -49,6 +49,7 @@ private:
     VariableDeclaration       ParseVariableDeclaration(const Token& NameToken);
     std::vector<ValuePart>    ParseValueList();
     ValuePart                 ParseValuePart();
+    ValuePart                 ParseColorFunction(const std::string& Name);
     void CheckDuplicateSelectors(const std::vector<RulePtr>& Rules);
     static std::string DescribeSelector(const Rule& R);
 

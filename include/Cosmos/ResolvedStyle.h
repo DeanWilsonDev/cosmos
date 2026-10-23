@@ -116,6 +116,30 @@ struct AttrBinding {
     friend bool operator==(const AttrBinding&, const AttrBinding&) = default;
 };
 
+// One channel of a colour attr() binds, from 0 to 255 like the others, alpha included:
+// the element's own number prop called Attribute when that is set, else Value.
+struct ColorChannel {
+    std::optional<std::string> Attribute;
+    std::uint8_t               Value{0}; // used when Attribute is unset
+
+    friend bool operator==(const ColorChannel&, const ColorChannel&) = default;
+};
+
+// A colour property set from the element's props by an rgb()/rgba() with at least one
+// attr() channel: `background-color: rgba(attr(r), attr(g), attr(b), 255)`. Property is
+// `background-color`, `background-gradient-start`, `background-gradient-end`,
+// `border-color` or `color`. The backend reads each named prop as a number, rounds it and
+// clamps it to 0..255; when one of them is missing, the property stays unset.
+struct ColorAttrBinding {
+    std::string  Property;
+    ColorChannel R;
+    ColorChannel G;
+    ColorChannel B;
+    ColorChannel A;
+
+    friend bool operator==(const ColorAttrBinding&, const ColorAttrBinding&) = default;
+};
+
 // The chart properties, read only by the chart primitives (<BarChart>, <LineChart>,
 // <DonutChart>). Lengths are logical pixels; AreaOpacity and BarGap are fractions;
 // SegmentGap is degrees. A series' or slice's own colour is its ordinary `color`.
@@ -198,7 +222,8 @@ struct ResolvedStyle {
 
     // The properties set by attr(), which have no value here until the backend reads
     // the element's props. A property is either bound here or set above, never both.
-    std::vector<AttrBinding> AttrBindings;
+    std::vector<AttrBinding>      AttrBindings;
+    std::vector<ColorAttrBinding> ColorAttrBindings;
 
     ChartProperties Chart;
     std::optional<Color> ScrollbarThumbColor;

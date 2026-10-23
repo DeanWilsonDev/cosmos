@@ -203,9 +203,47 @@ std::string Written(const std::string& Prop, const std::vector<ValuePart>& Value
             Text += *V.HexColor;
         } else if (V.StringValue) {
             Text += "\"" + *V.StringValue + "\"";
+        } else if (V.AttrRef) {
+            Text += "attr(" + *V.AttrRef + ")";
+        } else if (V.ColorChannels) {
+            Text += V.ColorChannels->size() == 4 ? "rgba(" : "rgb(";
+            for (std::size_t I = 0; I < V.ColorChannels->size(); ++I) {
+                const ColorChannelPart& Channel = (*V.ColorChannels)[I];
+                Text += I == 0 ? "" : ", ";
+                Text += Channel.AttrRef ? "attr(" + *Channel.AttrRef + ")" : Channel.Number.value_or("");
+            }
+            Text += ")";
         }
     }
     return Text + "`";
+}
+
+// A literal rgb()/rgba() channel: a whole number from 0 to 255, alpha included.
+std::optional<std::uint8_t> ParseChannelNumber(const std::string& Text) {
+    int        Value        = 0;
+    const auto [End, Error] = std::from_chars(Text.data(), Text.data() + Text.size(), Value);
+    if (Error != std::errc{} || End != Text.data() + Text.size() || Value < 0 || Value > 255) {
+        return std::nullopt;
+    }
+    return static_cast<std::uint8_t>(Value);
+}
+
+bool BindsAnyChannel(const ValuePart& Part) {
+    return Part.ColorChannels && std::ranges::any_of(*Part.ColorChannels, [](const ColorChannelPart& Channel) {
+               return Channel.AttrRef.has_value();
+           });
+}
+
+// An rgb() has no alpha channel, so it's opaque.
+ColorChannel ResolveChannel(const std::vector<ColorChannelPart>& Channels, std::size_t Index) {
+    if (Index >= Channels.size()) {
+        return ColorChannel{.Value = 255};
+    }
+    const ColorChannelPart& Part = Channels[Index];
+    if (Part.AttrRef) {
+        return ColorChannel{.Attribute = *Part.AttrRef};
+    }
+    return ColorChannel{.Value = ParseChannelNumber(Part.Number.value_or("")).value_or(0)};
 }
 
 std::optional<float> ParsePixels(const ValuePart& Part, const std::string& Prop,
@@ -264,6 +302,14 @@ std::optional<Easing> ParseEasing(std::string_view Keyword) {
 }
 
 std::optional<Color> ParseColor(const ValuePart& Part) {
+    if (Part.ColorChannels) {
+        if (BindsAnyChannel(Part)) {
+            return std::nullopt;
+        }
+        const std::vector<ColorChannelPart>& Channels = *Part.ColorChannels;
+        return Color{ResolveChannel(Channels, 0).Value, ResolveChannel(Channels, 1).Value,
+                     ResolveChannel(Channels, 2).Value, ResolveChannel(Channels, 3).Value};
+    }
     if (!Part.HexColor) {
         return std::nullopt;
     }
@@ -349,6 +395,32 @@ bool ClearAttrBindableProperty(const std::string& Prop, ResolvedStyle& Out) {
     return true;
 }
 
+// The colour properties an rgb()/rgba() with attr() channels can set, each with the field
+// a concrete value of it fills in; null for any other property.
+std::optional<Color>* ColorBindableField(std::string_view Prop, ResolvedStyle& Out) {
+    if (Prop == "background-color") {
+        return &Out.BackgroundColor;
+    }
+    if (Prop == "background-gradient-start") {
+        return &Out.BackgroundGradientStart;
+    }
+    if (Prop == "background-gradient-end") {
+        return &Out.BackgroundGradientEnd;
+    }
+    if (Prop == "border-color") {
+        return &Out.BorderColor;
+    }
+    if (Prop == "color") {
+        return &Out.TextColor;
+    }
+    return nullptr;
+}
+
+bool BindsColor(const ResolvedStyle& Style, std::string_view Prop) {
+    return std::ranges::any_of(Style.ColorAttrBindings,
+                               [&](const ColorAttrBinding& Binding) { return Binding.Property == Prop; });
+}
+
 bool IsContainerTag(std::string_view Tag) {
     static const std::unordered_map<std::string_view, bool> kIsContainer{
         {"Frame", true},  {"Grid", true},  {"Scroll", true}, {"Inline", true},
@@ -383,16 +455,53 @@ void ApplyDeclaration(const Declaration& Decl, const VariableScope& Scope, Resol
     // A declaration replaces any earlier attr() binding of the same property, as a later
     // value does in CSS, and an attr() replaces any earlier value.
     std::erase_if(Out.AttrBindings, [&](const AttrBinding& Binding) { return Binding.Property == Prop; });
+    std::erase_if(Out.ColorAttrBindings, [&](const ColorAttrBinding& Binding) { return Binding.Property == Prop; });
     if (Resolved[0].AttrRef) {
         if (Resolved.size() != 1 || !ClearAttrBindableProperty(Prop, Out)) {
+            const std::string ColorHint =
+                ColorBindableField(Prop, Out) ? " A colour takes attr() per channel instead: "
+                                                "`rgba(attr(r), attr(g), attr(b), attr(a))`."
+                                              : "";
             Diagnostics.push_back(ResolveDiagnostic{"`" + Prop + ": attr(" + *Resolved[0].AttrRef +
                                                       ")` -- attr() sets a single number, and only `width`, "
                                                       "`height`, `min-width`, `max-width`, `flex-grow`, `opacity`, "
                                                       "`gap`, `border-width`, `border-radius`, `top`, `right`, "
-                                                      "`bottom` and `left` take one."});
+                                                      "`bottom` and `left` take one." +
+                                                      ColorHint});
             return;
         }
         Out.AttrBindings.push_back(AttrBinding{Prop, *Resolved[0].AttrRef});
+        return;
+    }
+
+    for (const ValuePart& V : Resolved) {
+        if (!V.ColorChannels) {
+            continue;
+        }
+        for (const ColorChannelPart& Channel : *V.ColorChannels) {
+            if (Channel.Number && !ParseChannelNumber(*Channel.Number)) {
+                Diagnostics.push_back(ResolveDiagnostic{Written(Prop, Resolved) + " -- each channel of `rgb()` "
+                                                        "and `rgba()` is a whole number from 0 to 255, alpha "
+                                                        "included, or `attr(name)`."});
+                return;
+            }
+        }
+    }
+
+    if (std::ranges::any_of(Resolved, BindsAnyChannel)) {
+        std::optional<Color>* Field = Resolved.size() == 1 ? ColorBindableField(Prop, Out) : nullptr;
+        if (!Field) {
+            Diagnostics.push_back(ResolveDiagnostic{Written(Prop, Resolved) +
+                                                      " -- attr() inside `rgb()`/`rgba()` sets only "
+                                                      "`background-color`, `background-gradient-start`, "
+                                                      "`background-gradient-end`, `border-color` and `color`, "
+                                                      "each from a single colour."});
+            return;
+        }
+        Field->reset();
+        const std::vector<ColorChannelPart>& Channels = *Resolved[0].ColorChannels;
+        Out.ColorAttrBindings.push_back(ColorAttrBinding{Prop, ResolveChannel(Channels, 0), ResolveChannel(Channels, 1),
+                                                         ResolveChannel(Channels, 2), ResolveChannel(Channels, 3)});
         return;
     }
 
@@ -916,10 +1025,18 @@ void CombineFont(ResolvedStyle& Style) {
     }
 }
 
+bool IsGradientStop(std::string_view Prop) {
+    return Prop == "background-gradient-start" || Prop == "background-gradient-end";
+}
+
 void FinalizePairedProperties(ResolvedStyle& Style) {
-    if (!Style.BackgroundGradientStart.has_value() || !Style.BackgroundGradientEnd.has_value()) {
+    const bool HasStart = Style.BackgroundGradientStart || BindsColor(Style, "background-gradient-start");
+    const bool HasEnd   = Style.BackgroundGradientEnd || BindsColor(Style, "background-gradient-end");
+    if (!HasStart || !HasEnd) {
         Style.BackgroundGradientStart.reset();
         Style.BackgroundGradientEnd.reset();
+        std::erase_if(Style.ColorAttrBindings,
+                      [](const ColorAttrBinding& Binding) { return IsGradientStop(Binding.Property); });
     }
     if (!Style.ShadowColor.has_value() || !Style.ShadowBlurRadiusLogical.has_value()) {
         Style.ShadowColor.reset();
@@ -948,11 +1065,14 @@ ResolvedStyle ResolveStyle(const IStyleTarget& Target, const StylesheetSet& Shee
                             std::vector<ResolveDiagnostic>& OutDiagnostics) {
     ResolvedStyle Style = ResolveCascadedLayers(Target, Sheets, OutDiagnostics);
 
-    if ((!Style.TextColor || !Style.FontFamily || !Style.FontSizeLogical || !Style.FontStyleMode ||
+    // A bound colour is the element's own, so it inherits nothing; its value is only known
+    // to the backend, so its descendants inherit nothing from it either.
+    const bool InheritsColor = !Style.TextColor && !BindsColor(Style, "color");
+    if ((InheritsColor || !Style.FontFamily || !Style.FontSizeLogical || !Style.FontStyleMode ||
          !Style.PointerEventsMode) &&
         Target.Parent() != nullptr) {
         const ResolvedStyle Ancestor = ResolveStyle(*Target.Parent(), Sheets, OutDiagnostics);
-        if (!Style.TextColor) {
+        if (InheritsColor) {
             Style.TextColor = Ancestor.TextColor;
         }
         if (!Style.FontFamily) {

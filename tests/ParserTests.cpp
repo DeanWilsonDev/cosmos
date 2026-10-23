@@ -174,4 +174,41 @@ DESCRIBE("Parser", {
         ASSERT_TRUE(Values[0].AttrRef == "fill");
         ASSERT_FALSE(Values[0].Literal.has_value());
     });
+
+    IT("parses rgb() and rgba() channels, each a number or attr(name)", {
+        Parser TheParser(".tile { background-color: rgba(attr(r), 10, attr(b), 255); border-color: rgb(1, 2, 3); }",
+                         "test.cosmos");
+        const ParseResult Result = TheParser.Parse();
+
+        ASSERT_TRUE(Result.Errors.empty());
+        REQUIRE_TRUE(Result.Sheet.has_value());
+        const std::vector<Declaration>& Declarations = Result.Sheet->Rules[0]->Declarations;
+        REQUIRE_EQUAL(Declarations.size(), std::size_t{2});
+        REQUIRE_EQUAL(Declarations[0].Values.size(), std::size_t{1});
+        REQUIRE_TRUE(Declarations[0].Values[0].ColorChannels.has_value());
+        const std::vector<ColorChannelPart>& Rgba = *Declarations[0].Values[0].ColorChannels;
+        REQUIRE_EQUAL(Rgba.size(), std::size_t{4});
+        ASSERT_TRUE(Rgba[0] == (ColorChannelPart{.AttrRef = "r"}));
+        ASSERT_TRUE(Rgba[1] == (ColorChannelPart{.Number = "10"}));
+        ASSERT_TRUE(Rgba[2] == (ColorChannelPart{.AttrRef = "b"}));
+        ASSERT_TRUE(Rgba[3] == (ColorChannelPart{.Number = "255"}));
+        REQUIRE_TRUE(Declarations[1].Values[0].ColorChannels.has_value());
+        ASSERT_EQUAL(Declarations[1].Values[0].ColorChannels->size(), std::size_t{3});
+    });
+
+    IT("reports an rgba() with the wrong number of channels, or a channel that isn't a number or attr()", {
+        Parser TheParser(R"(
+.a { background-color: rgba(1, 2); }
+.b { background-color: rgba(1, red, 3); }
+.c { color: #FFFFFF; }
+)",
+                         "test.cosmos");
+        const ParseResult Result = TheParser.Parse();
+
+        REQUIRE_EQUAL(Result.Errors.size(), std::size_t{2});
+        ASSERT_TRUE(Result.Errors[0].Message.find("takes three or four channels") != std::string::npos);
+        ASSERT_TRUE(Result.Errors[1].Message.find("Expected a number or `attr(name)`") != std::string::npos);
+        REQUIRE_TRUE(Result.Sheet.has_value());
+        ASSERT_EQUAL(Result.Sheet->Rules.size(), std::size_t{3});
+    });
 });

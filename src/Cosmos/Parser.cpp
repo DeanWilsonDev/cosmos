@@ -149,6 +149,9 @@ ValuePart Parser::ParseValuePart() {
             Expect(TokenKind::CloseParen, "Expected `)` to close `attr(...)`.");
             return ValuePart{.AttrRef = NameToken.Text};
         }
+        if ((Text == "rgb" || Text == "rgba") && Match(TokenKind::OpenParen)) {
+            return ParseColorFunction(Text);
+        }
         if (Match(TokenKind::OpenParen)) {
             // v1's only function-call value shape: `scale(1.5)` (§2's
             // `transform`), not a general function-call grammar.
@@ -161,6 +164,48 @@ ValuePart Parser::ParseValuePart() {
     Errors_.push_back(ParseError{"Expected a property value.", Current_.Location});
     Advance();
     return ValuePart{};
+}
+
+// After `rgb(` or `rgba(`: comma-separated channels, each a number or attr(name). As in
+// CSS today, either name takes three channels or four.
+ValuePart Parser::ParseColorFunction(const std::string& Name) {
+    std::vector<ColorChannelPart> Channels;
+    while (!Check(TokenKind::CloseParen) && !Check(TokenKind::Semicolon) && !Check(TokenKind::CloseBrace) &&
+           !Check(TokenKind::EndOfFile)) {
+        if (!Channels.empty()) {
+            Expect(TokenKind::Comma, "Expected `,` between the channels of `" + Name + "(...)`.");
+        }
+        if (Check(TokenKind::Number)) {
+            Channels.push_back(ColorChannelPart{.Number = Current_.Text});
+            Advance();
+            continue;
+        }
+        if (Check(TokenKind::Identifier) && Current_.Text == "attr" && Peek_.Kind == TokenKind::OpenParen) {
+            Advance();
+            Advance();
+            Token NameToken = Expect(TokenKind::Identifier, "Expected a prop name inside `attr(...)`.");
+            Expect(TokenKind::CloseParen, "Expected `)` to close `attr(...)`.");
+            Channels.push_back(ColorChannelPart{.AttrRef = NameToken.Text});
+            continue;
+        }
+        Errors_.push_back(ParseError{"Expected a number or `attr(name)` as a channel of `" + Name + "(...)`.",
+                                     Current_.Location});
+        while (!Check(TokenKind::CloseParen) && !Check(TokenKind::Semicolon) && !Check(TokenKind::CloseBrace) &&
+               !Check(TokenKind::EndOfFile)) {
+            Advance();
+        }
+        Match(TokenKind::CloseParen);
+        return ValuePart{};
+    }
+    const SourceLocation Close = Current_.Location;
+    Expect(TokenKind::CloseParen, "Expected `)` to close `" + Name + "(...)`.");
+    if (Channels.size() != 3 && Channels.size() != 4) {
+        Errors_.push_back(ParseError{"`" + Name + "(...)` takes three or four channels: red, green, blue and an "
+                                     "optional alpha.",
+                                     Close});
+        return ValuePart{};
+    }
+    return ValuePart{.ColorChannels = std::move(Channels)};
 }
 
 std::vector<ValuePart> Parser::ParseValueList() {

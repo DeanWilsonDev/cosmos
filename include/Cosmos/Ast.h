@@ -23,6 +23,14 @@ enum class SelectorKind {
 
 enum class PseudoKind { Hover, Active, Disabled };
 
+// One channel of rgb()/rgba() as written: a number, or attr(name). Exactly one is set.
+struct ColorChannelPart {
+    std::optional<std::string> Number;
+    std::optional<std::string> AttrRef;
+
+    friend bool operator==(const ColorChannelPart&, const ColorChannelPart&) = default;
+};
+
 // A raw property value as written in source. The parser does not interpret
 // units, colors, or var() references any further than this — that's the
 // resolver's job (§1.4's variable resolution, §1.5's unit resolution).
@@ -35,6 +43,8 @@ struct ValuePart {
     std::optional<std::string> HexColor;     // "#E8593C"
     std::optional<std::string> VariableRef;  // var(--name) -- the "name" part, no fallback (§1.4)
     std::optional<std::string> AttrRef;      // attr(name) -- the element's own `name` prop, read by the backend
+    // rgb()/rgba(): red, green, blue and an optional alpha, in that order.
+    std::optional<std::vector<ColorChannelPart>> ColorChannels;
     // Populated alongside Literal when a bare identifier is immediately
     // followed by a parenthesized argument -- v1's only case is
     // `transform: scale(1.5)` (§2), so this holds "1.5" when Literal holds
