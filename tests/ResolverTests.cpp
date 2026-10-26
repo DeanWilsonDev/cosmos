@@ -1250,9 +1250,30 @@ DESCRIBE("Resolver", {
                     (ColorAttrBinding{"background-color", Bound("r"), Bound("g"), Bound("b"), Fixed(255)}));
     });
 
+    IT("binds box-shadow's colour channels and keeps its blur radius", {
+        const auto Sheet = ParseOrFail(R"(
+.glow { box-shadow: #FFFFFF 8px; }
+.glow-pulsing { box-shadow: rgba(74, 144, 255, attr(glowAlpha)) 24px; }
+)", "test.cosmos");
+        REQUIRE_TRUE(Sheet.has_value());
+
+        FakeElement Element("glow glow-pulsing", "Frame", nullptr, /*ComponentRoot=*/true);
+        Resolver                       R;
+        std::vector<ResolveDiagnostic> Diagnostics;
+        const ResolvedStyle Style = R.Resolve(Element, StylesheetSet{nullptr, &*Sheet}, false, Diagnostics);
+
+        ASSERT_TRUE(Diagnostics.empty());
+        ASSERT_FALSE(Style.ShadowColor.has_value());
+        REQUIRE_TRUE(Style.ShadowBlurRadiusLogical.has_value());
+        ASSERT_TRUE(*Style.ShadowBlurRadiusLogical == 24.0F);
+        REQUIRE_EQUAL(Style.ColorAttrBindings.size(), std::size_t{1});
+        ASSERT_TRUE(Style.ColorAttrBindings[0] ==
+                    (ColorAttrBinding{"box-shadow", Fixed(74), Fixed(144), Fixed(255), Bound("glowAlpha")}));
+    });
+
     IT("diagnoses colour channels out of range, and attr() channels on a colour that can't take them", {
         const auto Sheet = ParseOrFail(R"(
-.a { box-shadow: rgba(attr(r), attr(g), attr(b), 255) 12px; }
+.a { box-shadow: rgba(attr(r), attr(g), attr(b), 255); }
 .b { selection-color: rgba(attr(r), attr(g), attr(b), 255); }
 .c { background-color: rgba(256, 0, 0, 255); }
 .d { background-color: rgba(0, 0, 0, 0.5); }
@@ -1271,7 +1292,7 @@ DESCRIBE("Resolver", {
             return Unset && Diagnostics.size() == 1 ? Diagnostics[0].Message : std::string{};
         };
 
-        ASSERT_TRUE(DiagnosticFor("a").find("`box-shadow: rgba(attr(r), attr(g), attr(b), 255) 12px`") !=
+        ASSERT_TRUE(DiagnosticFor("a").find("`box-shadow: rgba(attr(r), attr(g), attr(b), 255)`") !=
                     std::string::npos);
         ASSERT_TRUE(DiagnosticFor("b").find("sets only `background-color`") != std::string::npos);
         ASSERT_TRUE(DiagnosticFor("c").find("`background-color: rgba(256, 0, 0, 255)`") != std::string::npos);

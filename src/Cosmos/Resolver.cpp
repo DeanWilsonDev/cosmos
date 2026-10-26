@@ -488,6 +488,18 @@ void ApplyDeclaration(const Declaration& Decl, const VariableScope& Scope, Resol
         }
     }
 
+    if (Prop == "box-shadow" && Resolved.size() == 2 && BindsAnyChannel(Resolved[0])) {
+        if (const std::optional<float> Blur = ParsePixels(Resolved[1], Prop, Diagnostics)) {
+            const std::vector<ColorChannelPart>& Channels = *Resolved[0].ColorChannels;
+            Out.ShadowColor.reset();
+            Out.ShadowBlurRadiusLogical = Blur;
+            Out.ColorAttrBindings.push_back(ColorAttrBinding{Prop, ResolveChannel(Channels, 0),
+                                                             ResolveChannel(Channels, 1), ResolveChannel(Channels, 2),
+                                                             ResolveChannel(Channels, 3)});
+            return;
+        }
+    }
+
     if (std::ranges::any_of(Resolved, BindsAnyChannel)) {
         std::optional<Color>* Field = Resolved.size() == 1 ? ColorBindableField(Prop, Out) : nullptr;
         if (!Field) {
@@ -495,7 +507,8 @@ void ApplyDeclaration(const Declaration& Decl, const VariableScope& Scope, Resol
                                                       " -- attr() inside `rgb()`/`rgba()` sets only "
                                                       "`background-color`, `background-gradient-start`, "
                                                       "`background-gradient-end`, `border-color` and `color`, "
-                                                      "each from a single colour."});
+                                                      "each from a single colour, and `box-shadow`'s colour "
+                                                      "before its blur radius."});
             return;
         }
         Field->reset();
@@ -1038,9 +1051,12 @@ void FinalizePairedProperties(ResolvedStyle& Style) {
         std::erase_if(Style.ColorAttrBindings,
                       [](const ColorAttrBinding& Binding) { return IsGradientStop(Binding.Property); });
     }
-    if (!Style.ShadowColor.has_value() || !Style.ShadowBlurRadiusLogical.has_value()) {
+    const bool HasShadowColor = Style.ShadowColor || BindsColor(Style, "box-shadow");
+    if (!HasShadowColor || !Style.ShadowBlurRadiusLogical.has_value()) {
         Style.ShadowColor.reset();
         Style.ShadowBlurRadiusLogical.reset();
+        std::erase_if(Style.ColorAttrBindings,
+                      [](const ColorAttrBinding& Binding) { return Binding.Property == "box-shadow"; });
     }
     CombineFont(Style);
     for (const std::shared_ptr<ResolvedStyle>& Overlay : {Style.Hover, Style.Active, Style.Disabled}) {
