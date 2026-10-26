@@ -1,7 +1,0 @@
-{
-  "name": "cosmos",
-  "description": "Skills for reading and writing Cosmos (.cosmos) — a declarative, CSS-like stylesheet language for Iris UI components.",
-  "version": "1.0.0",
-  "author": { "name": "Dean Wilson" },
-  "license": "MIT"
-}
