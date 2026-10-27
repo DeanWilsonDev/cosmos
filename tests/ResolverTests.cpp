@@ -431,6 +431,20 @@ DESCRIBE("Resolver", {
         ASSERT_TRUE(*Style.Hover->ScrollbarThumbColor == (Color{0x4C, 0x52, 0x87, 0xFF}));
     });
 
+    IT("resolves accent-color", {
+        const auto Sheet = ParseOrFail(".x { accent-color: #4A90FFFF; }", "test.cosmos");
+        REQUIRE_TRUE(Sheet.has_value());
+
+        FakeElement Value("x", "Checkbox", nullptr, /*ComponentRoot=*/true);
+
+        Resolver                       R;
+        std::vector<ResolveDiagnostic> Diagnostics;
+        const ResolvedStyle Style = R.Resolve(Value, StylesheetSet{nullptr, &*Sheet}, false, Diagnostics);
+
+        REQUIRE_TRUE(Style.AccentColor.has_value());
+        ASSERT_TRUE(*Style.AccentColor == (Color{0x4A, 0x90, 0xFF, 0xFF}));
+    });
+
     IT("resolves selection-color", {
         const auto Sheet = ParseOrFail(".x { selection-color: #C8E64C66; }", "test.cosmos");
         REQUIRE_TRUE(Sheet.has_value());
