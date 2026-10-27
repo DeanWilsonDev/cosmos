@@ -230,6 +230,7 @@ struct ResolvedStyle {
     std::optional<Color> ScrollbarTrackColor;
     std::optional<float> ScrollbarWidthLogical;
     std::optional<Color> SelectionColor;
+    std::optional<Color> AccentColor;
 };
 
 } // namespace Cosmos

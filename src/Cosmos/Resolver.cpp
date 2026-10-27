@@ -673,6 +673,8 @@ void ApplyDeclaration(const Declaration& Decl, const VariableScope& Scope, Resol
         Out.ScrollbarWidthLogical = ParsePixels(Resolved[0], Prop, Diagnostics);
     } else if (Prop == "selection-color") {
         Out.SelectionColor = ParseColor(Resolved[0]);
+    } else if (Prop == "accent-color") {
+        Out.AccentColor = ParseColor(Resolved[0]);
     } else if (Prop == "transform") {
         if (Resolved[0].Literal == "scale" && Resolved[0].CallArgument) {
             float Value = 0.0F;
