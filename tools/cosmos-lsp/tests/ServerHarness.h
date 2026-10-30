@@ -108,6 +108,38 @@ inline Amanuensis::JsonValue MakeWatchedFileChange(const std::string& Uri) {
     return MakeNotification("workspace/didChangeWatchedFiles", std::move(Params));
 }
 
+// The result of the response to request Id, or null when there's none.
+inline Amanuensis::JsonValue ResultOf(const std::vector<Amanuensis::JsonValue>& Responses, long long Id) {
+    for (const Amanuensis::JsonValue& Message : Responses) {
+        if (Amanuensis::Json::Contains(Message, "id") && Amanuensis::Json::IsInteger(Amanuensis::Json::Get(Message, "id")) &&
+            Amanuensis::Json::AsInteger(Amanuensis::Json::Get(Message, "id")) == Id &&
+            Amanuensis::Json::Contains(Message, "result")) {
+            return Amanuensis::Json::Get(Message, "result");
+        }
+    }
+    return Amanuensis::JsonValue();
+}
+
+// The error message of the response to request Id, or "" when it succeeded.
+inline std::string ErrorOf(const std::vector<Amanuensis::JsonValue>& Responses, long long Id) {
+    for (const Amanuensis::JsonValue& Message : Responses) {
+        if (Amanuensis::Json::Contains(Message, "id") && Amanuensis::Json::IsInteger(Amanuensis::Json::Get(Message, "id")) &&
+            Amanuensis::Json::AsInteger(Amanuensis::Json::Get(Message, "id")) == Id &&
+            Amanuensis::Json::Contains(Message, "error")) {
+            return Amanuensis::Json::AsString(Amanuensis::Json::Get(Amanuensis::Json::Get(Message, "error"), "message"));
+        }
+    }
+    return "";
+}
+
+// Request with Key set to Value in its params.
+inline Amanuensis::JsonValue WithParam(Amanuensis::JsonValue Request, const std::string& Key, Amanuensis::JsonValue Value) {
+    Amanuensis::JsonValue Params = Amanuensis::Json::Get(Request, "params");
+    Amanuensis::Json::Insert(Params, Key, std::move(Value));
+    Amanuensis::Json::Insert(Request, "params", std::move(Params));
+    return Request;
+}
+
 // Every publishDiagnostics the server sent for Uri, in order; each entry is that
 // notification's diagnostics array.
 inline std::vector<Amanuensis::JsonValue> PublishedFor(const std::vector<Amanuensis::JsonValue>& Responses,

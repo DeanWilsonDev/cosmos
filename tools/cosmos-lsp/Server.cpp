@@ -30,15 +30,6 @@ Amanuensis::JsonValue DiagnosticRange(const std::vector<Cosmos::Token>& Tokens, 
     return MakeRange(Start.Line, Start.Column, Start.Line, Start.Column + 1);
 }
 
-Amanuensis::JsonValue MakeDiagnostic(Amanuensis::JsonValue Range, long long Severity, const std::string& Message) {
-    Amanuensis::JsonValue Diagnostic = Amanuensis::Json::MakeObject();
-    Amanuensis::Json::Insert(Diagnostic, "range", std::move(Range));
-    Amanuensis::Json::Insert(Diagnostic, "severity", Amanuensis::JsonValue(Severity));
-    Amanuensis::Json::Insert(Diagnostic, "source", Amanuensis::JsonValue("cosmos"));
-    Amanuensis::Json::Insert(Diagnostic, "message", Amanuensis::JsonValue(Message));
-    return Diagnostic;
-}
-
 std::pair<std::uint32_t, std::uint32_t> PositionFromParams(const Amanuensis::JsonValue& Position) {
     return {static_cast<std::uint32_t>(Amanuensis::Json::AsInteger(Amanuensis::Json::Get(Position, "line"))) + 1,
             static_cast<std::uint32_t>(Amanuensis::Json::AsInteger(Amanuensis::Json::Get(Position, "character"))) +
@@ -64,7 +55,10 @@ constexpr int kCompletionKindVariable = 6;
 // The requests a .chaos buffer gets answers to: the ones about its class strings. Every
 // other request about a file that isn't .cosmos gets null, so a client that attaches
 // cosmos-lsp to .chaos buffers for class references sees nothing else from it there.
-bool AnswersOutsideCosmos(std::string_view Method) { return Method == "textDocument/references"; }
+bool AnswersOutsideCosmos(std::string_view Method) {
+    return Method == "textDocument/references" || Method == "textDocument/prepareRename" ||
+           Method == "textDocument/rename";
+}
 
 } // namespace
 
@@ -91,6 +85,17 @@ void Server::Reply(const Amanuensis::JsonValue& Id, Amanuensis::JsonValue Result
     Amanuensis::Json::Insert(Message, "id", Id);
     Amanuensis::Json::Insert(Message, "result", std::move(Result));
     JsonRpc::WriteMessage(Out_, Message);
+}
+
+void Server::ReplyError(const Amanuensis::JsonValue& Id, long long Code, const std::string& Message) {
+    Amanuensis::JsonValue Error = Amanuensis::Json::MakeObject();
+    Amanuensis::Json::Insert(Error, "code", Amanuensis::JsonValue(Code));
+    Amanuensis::Json::Insert(Error, "message", Amanuensis::JsonValue(Message));
+    Amanuensis::JsonValue Response = Amanuensis::Json::MakeObject();
+    Amanuensis::Json::Insert(Response, "jsonrpc", Amanuensis::JsonValue("2.0"));
+    Amanuensis::Json::Insert(Response, "id", Id);
+    Amanuensis::Json::Insert(Response, "error", std::move(Error));
+    JsonRpc::WriteMessage(Out_, Response);
 }
 
 void Server::Notify(const std::string& Method, Amanuensis::JsonValue Params) {
@@ -153,15 +158,20 @@ void Server::HandleMessage(const Amanuensis::JsonValue& Message) {
         HandleDocumentSymbol(Id, Params);
     } else if (Method == "workspace/symbol") {
         HandleWorkspaceSymbol(Id, Params);
+    } else if (Method == "textDocument/prepareRename") {
+        HandlePrepareRename(Id, Params);
+    } else if (Method == "textDocument/rename") {
+        HandleRename(Id, Params);
+    } else if (Method == "textDocument/codeAction") {
+        HandleCodeAction(Id, Params);
+    } else if (Method == "textDocument/documentColor") {
+        HandleDocumentColor(Id, Params);
+    } else if (Method == "textDocument/colorPresentation") {
+        HandleColorPresentation(Id, Params);
+    } else if (Method == "textDocument/foldingRange") {
+        HandleFoldingRange(Id, Params);
     } else if (IsRequest) {
-        Amanuensis::JsonValue Error = Amanuensis::Json::MakeObject();
-        Amanuensis::Json::Insert(Error, "code", Amanuensis::JsonValue(static_cast<long long>(-32601)));
-        Amanuensis::Json::Insert(Error, "message", Amanuensis::JsonValue("method not found: " + Method));
-        Amanuensis::JsonValue Response = Amanuensis::Json::MakeObject();
-        Amanuensis::Json::Insert(Response, "jsonrpc", Amanuensis::JsonValue("2.0"));
-        Amanuensis::Json::Insert(Response, "id", Id);
-        Amanuensis::Json::Insert(Response, "error", std::move(Error));
-        JsonRpc::WriteMessage(Out_, Response);
+        ReplyError(Id, -32601, "method not found: " + Method);
     }
     // An unknown notification (no id) is silently ignored, per LSP's own "must not
     // fail" guidance for messages a server doesn't recognise.
@@ -192,9 +202,18 @@ void Server::HandleInitialize(const Amanuensis::JsonValue& Id, const Amanuensis:
     Amanuensis::Json::Insert(Capabilities, "completionProvider", std::move(Completion));
     Amanuensis::Json::Insert(Capabilities, "definitionProvider", Amanuensis::JsonValue(true));
     for (const char* Provider : {"hoverProvider", "referencesProvider", "documentHighlightProvider",
-                                 "documentSymbolProvider", "workspaceSymbolProvider"}) {
+                                 "documentSymbolProvider", "workspaceSymbolProvider", "colorProvider",
+                                 "foldingRangeProvider"}) {
         Amanuensis::Json::Insert(Capabilities, Provider, Amanuensis::JsonValue(true));
     }
+    Amanuensis::JsonValue Rename = Amanuensis::Json::MakeObject();
+    Amanuensis::Json::Insert(Rename, "prepareProvider", Amanuensis::JsonValue(true));
+    Amanuensis::Json::Insert(Capabilities, "renameProvider", std::move(Rename));
+    Amanuensis::JsonValue CodeActionKinds = Amanuensis::Json::MakeArray();
+    Amanuensis::Json::PushBack(CodeActionKinds, Amanuensis::JsonValue("quickfix"));
+    Amanuensis::JsonValue CodeAction = Amanuensis::Json::MakeObject();
+    Amanuensis::Json::Insert(CodeAction, "codeActionKinds", std::move(CodeActionKinds));
+    Amanuensis::Json::Insert(Capabilities, "codeActionProvider", std::move(CodeAction));
 
     Amanuensis::JsonValue ServerInfo = Amanuensis::Json::MakeObject();
     Amanuensis::Json::Insert(ServerInfo, "name", Amanuensis::JsonValue("cosmos-lsp"));
@@ -344,6 +363,24 @@ void Server::RebuildDocument(const std::string& Uri, std::string Text) {
     }
 }
 
+std::vector<Cosmos::CheckDiagnostic> Server::CheckDocument(const std::string& Path, const OpenDocument& Doc) {
+    if (!Doc.Parsed.Sheet) {
+        return {};
+    }
+    Cosmos::StylesheetSet Sheets;
+    if (IsGlobalPath(Path)) {
+        Sheets.Global = &*Doc.Parsed.Sheet;
+    } else {
+        Sheets.Global    = GlobalSheetFor(Path);
+        Sheets.Component = &*Doc.Parsed.Sheet;
+    }
+    std::vector<Cosmos::CheckDiagnostic> Found = Cosmos::CheckStylesheet(Sheets);
+    std::erase_if(Found, [&](const Cosmos::CheckDiagnostic& Each) {
+        return !Each.Location.FilePath.empty() && Each.Location.FilePath != Path;
+    });
+    return Found;
+}
+
 void Server::PublishDiagnostics(const std::string& Uri, const OpenDocument& Doc) {
     const std::vector<Cosmos::Token> Tokens = TokenizeDocument(Doc.Text);
     Amanuensis::JsonValue            Diagnostics = Amanuensis::Json::MakeArray();
@@ -351,23 +388,10 @@ void Server::PublishDiagnostics(const std::string& Uri, const OpenDocument& Doc)
         Amanuensis::Json::PushBack(Diagnostics,
                                    MakeDiagnostic(DiagnosticRange(Tokens, Err.Location, Err.Location), 1, Err.Message));
     }
-    if (Doc.Parsed.Sheet) {
-        const std::string     Path = UriToPath(Uri);
-        Cosmos::StylesheetSet Sheets;
-        if (IsGlobalPath(Path)) {
-            Sheets.Global = &*Doc.Parsed.Sheet;
-        } else {
-            Sheets.Global    = GlobalSheetFor(Path);
-            Sheets.Component = &*Doc.Parsed.Sheet;
-        }
-        for (const Cosmos::CheckDiagnostic& Found : Cosmos::CheckStylesheet(Sheets)) {
-            if (!Found.Location.FilePath.empty() && Found.Location.FilePath != Path) {
-                continue;
-            }
-            const long long Severity = Found.Severity == Cosmos::CheckSeverity::Error ? 1 : 2;
-            Amanuensis::Json::PushBack(
-                Diagnostics, MakeDiagnostic(DiagnosticRange(Tokens, Found.Location, Found.End), Severity, Found.Message));
-        }
+    for (const Cosmos::CheckDiagnostic& Found : CheckDocument(UriToPath(Uri), Doc)) {
+        const long long Severity = Found.Severity == Cosmos::CheckSeverity::Error ? 1 : 2;
+        Amanuensis::Json::PushBack(
+            Diagnostics, MakeDiagnostic(DiagnosticRange(Tokens, Found.Location, Found.End), Severity, Found.Message));
     }
 
     Amanuensis::JsonValue Params = Amanuensis::Json::MakeObject();

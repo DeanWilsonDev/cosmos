@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Cosmos/Ast.h"
+#include "Cosmos/Checker.h"
 #include "Cosmos/Parser.h"
 #include "Navigation.h"
 
@@ -39,6 +40,7 @@ private:
 
     void HandleMessage(const Amanuensis::JsonValue& Message);
     void Reply(const Amanuensis::JsonValue& Id, Amanuensis::JsonValue Result);
+    void ReplyError(const Amanuensis::JsonValue& Id, long long Code, const std::string& Message);
     void Notify(const std::string& Method, Amanuensis::JsonValue Params);
 
     void HandleInitialize(const Amanuensis::JsonValue& Id, const Amanuensis::JsonValue& Params);
@@ -73,6 +75,22 @@ private:
     // own; a class in every
     // .cosmos beside Path and in the class strings of every .chaos below its folder.
     std::vector<FileOccurrence> OccurrencesOf(const std::string& Path, const NamedSymbol& Symbol) const;
+
+    // The first place a rename of Symbol to NewName would collide with: a class already
+    // named NewName anywhere OccurrencesOf looks, or a variable named NewName in any file the
+    // old one's uses could be in, which a rename would capture or shadow.
+    std::optional<FileOccurrence> FirstUseOf(const std::string& Path, const NamedSymbol& Symbol,
+                                             const std::string& NewName) const;
+
+    void HandlePrepareRename(const Amanuensis::JsonValue& Id, const Amanuensis::JsonValue& Params);
+    void HandleRename(const Amanuensis::JsonValue& Id, const Amanuensis::JsonValue& Params);
+    void HandleCodeAction(const Amanuensis::JsonValue& Id, const Amanuensis::JsonValue& Params);
+    void HandleDocumentColor(const Amanuensis::JsonValue& Id, const Amanuensis::JsonValue& Params);
+    void HandleColorPresentation(const Amanuensis::JsonValue& Id, const Amanuensis::JsonValue& Params);
+    void HandleFoldingRange(const Amanuensis::JsonValue& Id, const Amanuensis::JsonValue& Params);
+
+    // The checker's findings for Doc that belong to it, with the sibling global.cosmos.
+    std::vector<Cosmos::CheckDiagnostic> CheckDocument(const std::string& Path, const OpenDocument& Doc);
 
     std::vector<std::string> CosmosFilesBeside(const std::string& Path) const;
     std::vector<std::string> ChaosFilesUnder(const std::filesystem::path& Folder) const;

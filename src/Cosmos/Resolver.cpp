@@ -1190,6 +1190,8 @@ std::string_view PrimitiveTagForSelector(std::string_view CosmosSelectorName) {
     return It == kMapping.end() ? std::string_view{} : It->second;
 }
 
+std::optional<Color> ColorOfValue(const ValuePart& Part) { return ParseColor(Part); }
+
 namespace Detail {
 
 VariableLookup LookUpVariable(const ValuePart& Part, const VariableScope& Scope) {

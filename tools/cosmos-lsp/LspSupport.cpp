@@ -54,4 +54,13 @@ bool IsGlobalPath(const std::string& Path) { return std::filesystem::path(Path).
 
 bool IsCosmosPath(const std::string& Path) { return std::filesystem::path(Path).extension() == ".cosmos"; }
 
+Amanuensis::JsonValue MakeDiagnostic(Amanuensis::JsonValue Range, long long Severity, const std::string& Message) {
+    Amanuensis::JsonValue Diagnostic = Amanuensis::Json::MakeObject();
+    Amanuensis::Json::Insert(Diagnostic, "range", std::move(Range));
+    Amanuensis::Json::Insert(Diagnostic, "severity", Amanuensis::JsonValue(Severity));
+    Amanuensis::Json::Insert(Diagnostic, "source", Amanuensis::JsonValue("cosmos"));
+    Amanuensis::Json::Insert(Diagnostic, "message", Amanuensis::JsonValue(Message));
+    return Diagnostic;
+}
+
 } // namespace CosmosLsp
