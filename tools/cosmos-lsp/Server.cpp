@@ -2,6 +2,7 @@
 
 #include "CompletionContext.h"
 #include "JsonRpc.h"
+#include "LspSupport.h"
 #include "Cosmos/Checker.h"
 #include "Cosmos/Parser.h"
 
@@ -12,53 +13,6 @@
 namespace CosmosLsp {
 
 namespace {
-
-std::string UriToPath(const std::string& Uri) {
-    constexpr std::string_view Prefix = "file://";
-    return Uri.substr(0, Prefix.size()) == Prefix ? Uri.substr(Prefix.size()) : Uri;
-}
-
-std::string PathToUri(const std::string& Path) { return "file://" + Path; }
-
-std::optional<std::string> ReadFile(const std::filesystem::path& Path) {
-    std::ifstream Stream(Path, std::ios::binary);
-    if (!Stream) {
-        return std::nullopt;
-    }
-    std::ostringstream Buffer;
-    Buffer << Stream.rdbuf();
-    return Buffer.str();
-}
-
-Amanuensis::JsonValue MakePosition(std::uint32_t Line, std::uint32_t Column) {
-    Amanuensis::JsonValue Position = Amanuensis::Json::MakeObject();
-    Amanuensis::Json::Insert(Position, "line", Amanuensis::JsonValue(static_cast<long long>(Line - 1)));
-    Amanuensis::Json::Insert(Position, "character", Amanuensis::JsonValue(static_cast<long long>(Column - 1)));
-    return Position;
-}
-
-Amanuensis::JsonValue MakeRange(std::uint32_t Line, std::uint32_t Column, std::uint32_t EndLine,
-                                std::uint32_t EndColumn) {
-    Amanuensis::JsonValue Range = Amanuensis::Json::MakeObject();
-    Amanuensis::Json::Insert(Range, "start", MakePosition(Line, Column));
-    Amanuensis::Json::Insert(Range, "end", MakePosition(EndLine, EndColumn));
-    return Range;
-}
-
-Amanuensis::JsonValue MakeRange(std::uint32_t Line, std::uint32_t Column) { return MakeRange(Line, Column, Line, Column); }
-
-const Amanuensis::JsonValue* FindPath(const Amanuensis::JsonValue& Root, std::initializer_list<std::string_view> Keys) {
-    const Amanuensis::JsonValue* Current = &Root;
-    for (const std::string_view Key : Keys) {
-        if (!Amanuensis::Json::IsObject(*Current) || !Amanuensis::Json::Contains(*Current, std::string(Key))) {
-            return nullptr;
-        }
-        Current = &Amanuensis::Json::Get(*Current, std::string(Key));
-    }
-    return Current;
-}
-
-bool IsGlobalPath(const std::string& Path) { return std::filesystem::path(Path).filename() == "global.cosmos"; }
 
 // The range a diagnostic underlines: Start..End when the diagnostic has a span, else the
 // token that starts at Start, else one column.
@@ -107,6 +61,11 @@ constexpr int kCompletionKindClass = 7;
 constexpr int kCompletionKindKeyword = 14;
 constexpr int kCompletionKindVariable = 6;
 
+// The requests a .chaos buffer gets answers to: the ones about its class strings. Every
+// other request about a file that isn't .cosmos gets null, so a client that attaches
+// cosmos-lsp to .chaos buffers for class references sees nothing else from it there.
+bool AnswersOutsideCosmos(std::string_view Method) { return Method == "textDocument/references"; }
+
 } // namespace
 
 void Server::Run(std::FILE* In, std::FILE* Out) {
@@ -152,6 +111,14 @@ void Server::HandleMessage(const Amanuensis::JsonValue& Message) {
     const bool               IsRequest = Amanuensis::Json::Contains(Message, "id");
     const Amanuensis::JsonValue  Id = IsRequest ? Amanuensis::Json::Get(Message, "id") : Amanuensis::JsonValue();
 
+    if (IsRequest && Method.starts_with("textDocument/") && !AnswersOutsideCosmos(Method)) {
+        const Amanuensis::JsonValue* Uri = FindPath(Params, {"textDocument", "uri"});
+        if (Uri && Amanuensis::Json::IsString(*Uri) && !IsCosmosPath(UriToPath(Amanuensis::Json::AsString(*Uri)))) {
+            Reply(Id, Amanuensis::JsonValue());
+            return;
+        }
+    }
+
     if (Method == "initialize") {
         HandleInitialize(Id, Params);
     } else if (Method == "initialized") {
@@ -176,6 +143,16 @@ void Server::HandleMessage(const Amanuensis::JsonValue& Message) {
         HandleCompletion(Id, Params);
     } else if (Method == "textDocument/definition") {
         HandleDefinition(Id, Params);
+    } else if (Method == "textDocument/hover") {
+        HandleHover(Id, Params);
+    } else if (Method == "textDocument/references") {
+        HandleReferences(Id, Params);
+    } else if (Method == "textDocument/documentHighlight") {
+        HandleDocumentHighlight(Id, Params);
+    } else if (Method == "textDocument/documentSymbol") {
+        HandleDocumentSymbol(Id, Params);
+    } else if (Method == "workspace/symbol") {
+        HandleWorkspaceSymbol(Id, Params);
     } else if (IsRequest) {
         Amanuensis::JsonValue Error = Amanuensis::Json::MakeObject();
         Amanuensis::Json::Insert(Error, "code", Amanuensis::JsonValue(static_cast<long long>(-32601)));
@@ -194,6 +171,9 @@ void Server::HandleInitialize(const Amanuensis::JsonValue& Id, const Amanuensis:
     const Amanuensis::JsonValue* Watch =
         FindPath(Params, {"capabilities", "workspace", "didChangeWatchedFiles", "dynamicRegistration"});
     WatchGlobalFiles_ = Watch && Amanuensis::Json::IsBoolean(*Watch) && Amanuensis::Json::AsBoolean(*Watch);
+    if (const Amanuensis::JsonValue* Root = FindPath(Params, {"rootUri"}); Root && Amanuensis::Json::IsString(*Root)) {
+        RootPath_ = UriToPath(Amanuensis::Json::AsString(*Root));
+    }
 
     Amanuensis::JsonValue Completion = Amanuensis::Json::MakeObject();
     Amanuensis::JsonValue TriggerChars = Amanuensis::Json::MakeArray();
@@ -211,6 +191,10 @@ void Server::HandleInitialize(const Amanuensis::JsonValue& Id, const Amanuensis:
     Amanuensis::Json::Insert(Capabilities, "textDocumentSync", std::move(Sync));
     Amanuensis::Json::Insert(Capabilities, "completionProvider", std::move(Completion));
     Amanuensis::Json::Insert(Capabilities, "definitionProvider", Amanuensis::JsonValue(true));
+    for (const char* Provider : {"hoverProvider", "referencesProvider", "documentHighlightProvider",
+                                 "documentSymbolProvider", "workspaceSymbolProvider"}) {
+        Amanuensis::Json::Insert(Capabilities, Provider, Amanuensis::JsonValue(true));
+    }
 
     Amanuensis::JsonValue ServerInfo = Amanuensis::Json::MakeObject();
     Amanuensis::Json::Insert(ServerInfo, "name", Amanuensis::JsonValue("cosmos-lsp"));
@@ -336,7 +320,7 @@ void Server::GlobalChanged(const std::string& GlobalPath) {
     const std::filesystem::path Folder = std::filesystem::path(GlobalPath).parent_path();
     for (const auto& [Uri, Doc] : Documents_) {
         const std::string Path = UriToPath(Uri);
-        if (!IsGlobalPath(Path) && std::filesystem::path(Path).parent_path() == Folder) {
+        if (IsCosmosPath(Path) && !IsGlobalPath(Path) && std::filesystem::path(Path).parent_path() == Folder) {
             PublishDiagnostics(Uri, Doc);
         }
     }
@@ -347,6 +331,9 @@ void Server::RebuildDocument(const std::string& Uri, std::string Text) {
 
     OpenDocument& Doc = Documents_[Uri];
     Doc.Text = std::move(Text);
+    if (!IsCosmosPath(Path)) {
+        return;
+    }
 
     Cosmos::Parser P(Doc.Text, Path);
     Doc.Parsed = P.Parse();
@@ -405,7 +392,7 @@ void Server::HandleCompletion(const Amanuensis::JsonValue& Id, const Amanuensis:
                 Amanuensis::Json::PushBack(Items, MakeCompletionItem(V->Name, kCompletionKindVariable));
             }
             if (const Cosmos::Stylesheet* Global = GlobalSheetFor(UriToPath(Uri))) {
-                for (const auto* V : CollectInScopeVariables(*Global)) {
+                for (const auto* V : CollectRootVariables(*Global)) {
                     Amanuensis::Json::PushBack(Items, MakeCompletionItem(V->Name, kCompletionKindVariable));
                 }
             }
@@ -469,7 +456,7 @@ void Server::HandleDefinition(const Amanuensis::JsonValue& Id, const Amanuensis:
 
     const std::string Path = UriToPath(Uri);
     if (const Cosmos::Stylesheet* Global = GlobalSheetFor(Path)) {
-        for (const auto* V : CollectInScopeVariables(*Global)) {
+        for (const auto* V : CollectRootVariables(*Global)) {
             if (V->Name == Token->Text) {
                 const std::filesystem::path GlobalPath = GlobalPathFor(Path);
                 Amanuensis::JsonValue Location = Amanuensis::Json::MakeObject();

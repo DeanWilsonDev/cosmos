@@ -119,18 +119,33 @@ std::optional<Cosmos::Token> TokenAtPosition(std::string_view Source, std::uint3
     return std::nullopt;
 }
 
-std::vector<const Cosmos::VariableDeclaration*> CollectInScopeVariables(const Cosmos::Stylesheet& Sheet) {
+namespace {
+
+void CollectRuleVariables(const std::vector<Cosmos::RulePtr>& Rules,
+                          std::vector<const Cosmos::VariableDeclaration*>& Out) {
+    for (const auto& Rule : Rules) {
+        for (const auto& V : Rule->Variables) {
+            Out.push_back(&V);
+        }
+        CollectRuleVariables(Rule->NestedRules, Out);
+    }
+}
+
+} // namespace
+
+std::vector<const Cosmos::VariableDeclaration*> CollectRootVariables(const Cosmos::Stylesheet& Sheet) {
     std::vector<const Cosmos::VariableDeclaration*> Result;
     if (Sheet.Root) {
         for (const auto& V : Sheet.Root->Variables) {
             Result.push_back(&V);
         }
     }
-    for (const auto& Rule : Sheet.Rules) {
-        for (const auto& V : Rule->Variables) {
-            Result.push_back(&V);
-        }
-    }
+    return Result;
+}
+
+std::vector<const Cosmos::VariableDeclaration*> CollectInScopeVariables(const Cosmos::Stylesheet& Sheet) {
+    std::vector<const Cosmos::VariableDeclaration*> Result = CollectRootVariables(Sheet);
+    CollectRuleVariables(Sheet.Rules, Result);
     return Result;
 }
 

@@ -114,6 +114,7 @@ std::optional<RootBlock> Parser::TryParseRootBlock() {
         }
     }
     Expect(TokenKind::CloseBrace, "Expected `}` to close `:root { }`.");
+    Block.End = PreviousEnd_;
     return Block;
 }
 
@@ -374,7 +375,9 @@ RulePtr Parser::ParseRule(int Depth) {
         }
     }
 
+    R->SelectorEnd = PreviousEnd_;
     ParseRuleBody(*R, Depth + 1);
+    R->End = PreviousEnd_;
     return R;
 }
 
