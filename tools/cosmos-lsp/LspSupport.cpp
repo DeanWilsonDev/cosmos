@@ -52,4 +52,6 @@ const Amanuensis::JsonValue* FindPath(const Amanuensis::JsonValue& Root, std::in
 
 bool IsGlobalPath(const std::string& Path) { return std::filesystem::path(Path).filename() == "global.cosmos"; }
 
+bool IsCosmosPath(const std::string& Path) { return std::filesystem::path(Path).extension() == ".cosmos"; }
+
 } // namespace CosmosLsp

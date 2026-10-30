@@ -8,11 +8,15 @@
 -- diagnostics all come straight from this one process.
 --
 -- Syntax highlighting is separate -- see cosmos-treesitter.lua alongside this file.
+--
+-- It also attaches to .chaos buffers (beside chaos-lsp, which owns them), so references
+-- from a `class="card"` string find `.card`'s selectors and every other use. For a .chaos
+-- buffer cosmos-lsp answers references only and publishes no diagnostics.
 
-vim.filetype.add({ extension = { cosmos = "cosmos" } })
+vim.filetype.add({ extension = { cosmos = "cosmos", chaos = "chaos" } })
 
 vim.api.nvim_create_autocmd("FileType", {
-  pattern = "cosmos",
+  pattern = { "cosmos", "chaos" },
   callback = function(args)
     vim.lsp.start({
       name = "cosmos-lsp",

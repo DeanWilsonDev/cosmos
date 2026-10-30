@@ -19,7 +19,7 @@ bool Contains(const TextSpan& Span, std::uint32_t Line, std::uint32_t Column) {
 bool IsClassChar(char C) { return std::isalnum(static_cast<unsigned char>(C)) || C == '-' || C == '_'; }
 
 // Calls Visit(Name, Line, Column) for each class name inside a `class="..."` or
-// `class='...'` prop in Source, with its 1-based start.
+// `class='...'` prop in Source, with its 1-based start, outside `//` and `/* */` comments.
 template <typename Visit>
 void ForEachChaosClass(std::string_view Source, Visit&& Each) {
     std::uint32_t Line = 1;
@@ -35,7 +35,25 @@ void ForEachChaosClass(std::string_view Source, Visit&& Each) {
         ++Pos;
     };
     constexpr std::string_view kProp = "class";
+    auto SkipPast = [&](std::string_view Closer) {
+        while (Pos < Source.size() && Source.compare(Pos, Closer.size(), Closer) != 0) {
+            Step();
+        }
+        for (std::size_t I = 0; I < Closer.size() && Pos < Source.size(); ++I) {
+            Step();
+        }
+    };
     while (Pos < Source.size()) {
+        if (Source.compare(Pos, 2, "//") == 0) {
+            SkipPast("\n");
+            continue;
+        }
+        if (Source.compare(Pos, 2, "/*") == 0) {
+            Step();
+            Step();
+            SkipPast("*/");
+            continue;
+        }
         const bool AtProp = Source.compare(Pos, kProp.size(), kProp) == 0 &&
                             (Pos == 0 || !IsClassChar(Source[Pos - 1]));
         if (!AtProp) {

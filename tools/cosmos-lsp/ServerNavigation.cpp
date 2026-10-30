@@ -109,7 +109,7 @@ std::string Lowercase(std::string_view Text) {
 
 bool SkippedFolder(const std::filesystem::path& Folder) {
     const std::string Name = Folder.filename().string();
-    return Name.starts_with('.') || Name.starts_with("build") || Name == "node_modules" || Name == "libs" ||
+    return Name.starts_with('.') || Name == "build" || Name.starts_with("build-") || Name.starts_with("build_") || Name == "node_modules" || Name == "libs" ||
            Name == "_deps";
 }
 
@@ -184,7 +184,7 @@ std::vector<std::string> Server::CosmosFilesBeside(const std::string& Path) cons
     }
     for (const auto& [Uri, Doc] : Documents_) {
         const std::string OpenPath = UriToPath(Uri);
-        if (std::filesystem::path(OpenPath).parent_path() == std::filesystem::path(Path).parent_path() &&
+        if (IsCosmosPath(OpenPath) && std::filesystem::path(OpenPath).parent_path() == std::filesystem::path(Path).parent_path() &&
             std::ranges::find(Files, OpenPath) == Files.end()) {
             Files.push_back(OpenPath);
         }
@@ -285,53 +285,76 @@ void Server::HandleHover(const JsonValue& Id, const JsonValue& Params) {
     Reply(Id, std::move(Result));
 }
 
+bool Server::DeclaresVariable(const std::string& Path, std::string_view Name) const {
+    if (const auto Open = Documents_.find(PathToUri(Path)); Open != Documents_.end()) {
+        return Open->second.Parsed.Sheet &&
+               FindVariable(CollectInScopeVariables(*Open->second.Parsed.Sheet), Name);
+    }
+    const auto Text = ReadFile(Path);
+    if (!Text) {
+        return false;
+    }
+    Cosmos::Parser          P(*Text, Path);
+    const Cosmos::ParseResult Parsed = P.Parse();
+    return Parsed.Sheet && FindVariable(CollectInScopeVariables(*Parsed.Sheet), Name);
+}
+
+std::optional<NamedSymbol> Server::SymbolAtCursor(const std::string& Path, std::uint32_t Line,
+                                                  std::uint32_t Column) const {
+    const auto Text = TextOf(Path);
+    if (!Text) {
+        return std::nullopt;
+    }
+    return Path.ends_with(".chaos") ? ChaosClassAt(*Text, Line, Column) : SymbolAt(*Text, Line, Column);
+}
+
+std::vector<Server::FileOccurrence> Server::OccurrencesOf(const std::string& Path, const NamedSymbol& Symbol) const {
+    std::vector<FileOccurrence> Found;
+    auto Add = [&](const std::string& File, const std::vector<Occurrence>& InFile, bool InChaos) {
+        for (const Occurrence& Each : InFile) {
+            Found.push_back(FileOccurrence{File, Each, InChaos});
+        }
+    };
+    if (Symbol.Kind == NamedSymbolKind::Variable) {
+        const bool OwnDeclares = !IsGlobalPath(Path) && DeclaresVariable(Path, Symbol.Name);
+        const std::vector<std::string> Files = OwnDeclares ? std::vector<std::string>{Path} : CosmosFilesBeside(Path);
+        for (const std::string& File : Files) {
+            if (!OwnDeclares && !IsGlobalPath(File) && DeclaresVariable(File, Symbol.Name)) {
+                continue;
+            }
+            if (const auto FileText = TextOf(File)) {
+                Add(File, VariableOccurrences(*FileText, Symbol.Name), false);
+            }
+        }
+    } else if (Symbol.Kind == NamedSymbolKind::Class) {
+        const std::filesystem::path Folder = std::filesystem::path(Path).parent_path();
+        for (const std::string& File :
+             CosmosFilesBeside(Path.ends_with(".chaos") ? (Folder / "global.cosmos").string() : Path)) {
+            if (const auto FileText = TextOf(File)) {
+                Add(File, ClassSelectorOccurrences(*FileText, Symbol.Name), false);
+            }
+        }
+        for (const std::string& File : ChaosFilesUnder(Folder)) {
+            if (const auto FileText = TextOf(File)) {
+                Add(File, ClassUsesInChaos(*FileText, Symbol.Name), true);
+            }
+        }
+    }
+    return Found;
+}
+
 void Server::HandleReferences(const JsonValue& Id, const JsonValue& Params) {
-    const std::string Uri  = DocumentUri(Params);
-    const std::string Path = UriToPath(Uri);
+    const std::string Path = UriToPath(DocumentUri(Params));
     const auto [Line, Column] = CursorOf(Params);
     const JsonValue* IncludeDeclaration = FindPath(Params, {"context", "includeDeclaration"});
     const bool WithDeclarations = !IncludeDeclaration || !Json::IsBoolean(*IncludeDeclaration) ||
                                   Json::AsBoolean(*IncludeDeclaration);
 
-    JsonValue  Locations = Json::MakeArray();
-    const auto Text      = TextOf(Path);
-    const std::optional<NamedSymbol> Symbol =
-        Text ? (Path.ends_with(".chaos") ? ChaosClassAt(*Text, Line, Column) : SymbolAt(*Text, Line, Column))
-             : std::nullopt;
-    if (!Symbol || Symbol->Kind == NamedSymbolKind::Property) {
-        Reply(Id, std::move(Locations));
-        return;
-    }
-
-    auto Add = [&](const std::string& File, const std::vector<Occurrence>& Found) {
-        for (const Occurrence& Each : Found) {
-            if (WithDeclarations || !Each.IsDeclaration) {
-                Json::PushBack(Locations, MakeLocation(File, Each.Span));
-            }
-        }
-    };
-
-    if (Symbol->Kind == NamedSymbolKind::Variable) {
-        const auto  Own        = Documents_.find(Uri);
-        const bool  OwnDeclares = Own != Documents_.end() && Own->second.Parsed.Sheet && !IsGlobalPath(Path) &&
-                                 FindVariable(CollectInScopeVariables(*Own->second.Parsed.Sheet), Symbol->Name);
-        const std::vector<std::string> Files = OwnDeclares ? std::vector<std::string>{Path} : CosmosFilesBeside(Path);
-        for (const std::string& File : Files) {
-            if (const auto FileText = TextOf(File)) {
-                Add(File, VariableOccurrences(*FileText, Symbol->Name));
-            }
-        }
-    } else {
-        const std::filesystem::path Folder = std::filesystem::path(Path).parent_path();
-        for (const std::string& File : CosmosFilesBeside(Path.ends_with(".chaos") ? (Folder / "global.cosmos").string()
-                                                                                   : Path)) {
-            if (const auto FileText = TextOf(File)) {
-                Add(File, ClassSelectorOccurrences(*FileText, Symbol->Name));
-            }
-        }
-        for (const std::string& File : ChaosFilesUnder(Folder)) {
-            if (const auto FileText = TextOf(File)) {
-                Add(File, ClassUsesInChaos(*FileText, Symbol->Name));
+    JsonValue Locations = Json::MakeArray();
+    if (const std::optional<NamedSymbol> Symbol = SymbolAtCursor(Path, Line, Column)) {
+        for (const FileOccurrence& Each : OccurrencesOf(Path, *Symbol)) {
+            if (WithDeclarations || !Each.Found.IsDeclaration) {
+                Json::PushBack(Locations, MakeLocation(Each.Path, Each.Found.Span));
             }
         }
     }
@@ -401,7 +424,7 @@ void Server::HandleWorkspaceSymbol(const JsonValue& Id, const JsonValue& Params)
     }
     for (const auto& [Uri, Doc] : Documents_) {
         const std::string OpenPath = UriToPath(Uri);
-        if (RootPath_.empty() || !OpenPath.starts_with(RootPath_)) {
+        if (IsCosmosPath(OpenPath) && (RootPath_.empty() || !OpenPath.starts_with(RootPath_))) {
             AddFolder(std::filesystem::path(OpenPath).parent_path());
             if (std::ranges::find(Files, OpenPath) == Files.end()) {
                 Files.push_back(OpenPath);

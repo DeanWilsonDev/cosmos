@@ -2,6 +2,7 @@
 
 #include "Cosmos/Ast.h"
 #include "Cosmos/Parser.h"
+#include "Navigation.h"
 
 #include <amanuensis.hpp>
 
@@ -57,6 +58,22 @@ private:
 
     // A file's text: its open buffer when it's open, else the copy on disk.
     std::optional<std::string> TextOf(const std::string& Path) const;
+    struct FileOccurrence {
+        std::string Path;
+        Occurrence  Found;
+        bool        InChaos{false};
+    };
+    // Whether Path's own scope (its :root and every rule) declares the variable Name, so a
+    // var() of it there means its own and not global.cosmos's.
+    bool DeclaresVariable(const std::string& Path, std::string_view Name) const;
+    // The symbol under the cursor in a .cosmos file, or the class under it in a .chaos one.
+    std::optional<NamedSymbol> SymbolAtCursor(const std::string& Path, std::uint32_t Line, std::uint32_t Column) const;
+    // Everywhere Symbol, found in Path, is declared or used: a variable declared in Path
+    // only there, one from global.cosmos in every .cosmos beside it that doesn't declare its
+    // own; a class in every
+    // .cosmos beside Path and in the class strings of every .chaos below its folder.
+    std::vector<FileOccurrence> OccurrencesOf(const std::string& Path, const NamedSymbol& Symbol) const;
+
     std::vector<std::string> CosmosFilesBeside(const std::string& Path) const;
     std::vector<std::string> ChaosFilesUnder(const std::filesystem::path& Folder) const;
 

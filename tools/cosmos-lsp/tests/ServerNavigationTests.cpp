@@ -138,6 +138,19 @@ DESCRIBE("Server navigation", {
         ASSERT_EQUAL(Json::Size(UsesOnly), static_cast<std::size_t>(3));
     });
 
+    IT("leaves out files that declare their own copy of a global variable", {
+        Project P;
+        P.Folder.Write("Shadow.cosmos", ":root { --accent: #000000; }\n.shadow { color: var(--accent); }\n");
+        const auto Expected = (std::vector<std::string>{"Card.cosmos:3:27", "Card.cosmos:5:29", "Other.cosmos:1:21",
+                                                        "global.cosmos:3:5"});
+        ASSERT_EQUAL(LocationsOf(ResultOf(P.Run({MakeReferences(2, P.Folder.Uri("global.cosmos"), 2, 6, true)}), 2)),
+                     Expected);
+        ASSERT_EQUAL(LocationsOf(ResultOf(P.Run({MakeReferences(2, P.Folder.Uri("Other.cosmos"), 0, 22, true)}), 2)),
+                     Expected);
+        ASSERT_EQUAL(LocationsOf(ResultOf(P.Run({MakeReferences(2, P.Folder.Uri("Shadow.cosmos"), 1, 25, true)}), 2)),
+                     (std::vector<std::string>{"Shadow.cosmos:1:9", "Shadow.cosmos:2:22"}));
+    });
+
     IT("keeps a variable the file declares itself to that file", {
         Project P;
         const JsonValue Result = ResultOf(P.Run({MakeReferences(2, P.Folder.Uri("Card.cosmos"), 3, 20, true)}), 2);
@@ -154,6 +167,28 @@ DESCRIBE("Server navigation", {
                      Expected);
         ASSERT_EQUAL(LocationsOf(ResultOf(P.Run({MakeReferences(2, P.Folder.Uri("Card.cosmos"), 0, 2, false)}), 2)),
                      (std::vector<std::string>{"Card.chaos:2:26"}));
+    });
+
+    IT("skips class strings in comments and in build folders, but not in folders named like them", {
+        Project P;
+        P.Folder.Write("Commented.chaos", "// <Frame class=\"card\"/>\n/* class=\"card\" */\n");
+        P.Folder.Write("build/Built.chaos", "<Frame class=\"card\"/>\n");
+        P.Folder.Write("buildings/House.chaos", "<Frame class=\"card\"/>\n");
+        ASSERT_EQUAL(LocationsOf(ResultOf(P.Run({MakeReferences(2, P.Folder.Uri("Card.cosmos"), 0, 2, false)}), 2)),
+                     (std::vector<std::string>{"Card.chaos:2:26", "House.chaos:1:15"}));
+    });
+
+    IT("answers only references for an open .chaos buffer, and never parses it as Cosmos", {
+        Project   P;
+        const std::string ChaosUri  = P.Folder.Uri("Card.chaos");
+        const auto        Responses = P.Run({MakeDidOpen(ChaosUri, kChaos),
+                                             MakeRequest(2, "textDocument/hover", ChaosUri, 1, 27),
+                                             MakeRequest(3, "textDocument/completion", ChaosUri, 1, 27),
+                                             MakeReferences(4, ChaosUri, 1, 27, true)});
+        ASSERT_TRUE(PublishedFor(Responses, ChaosUri).empty());
+        ASSERT_TRUE(Json::IsNull(ResultOf(Responses, 2)));
+        ASSERT_TRUE(Json::IsNull(ResultOf(Responses, 3)));
+        ASSERT_EQUAL(Json::Size(ResultOf(Responses, 4)), static_cast<std::size_t>(4));
     });
 
     IT("highlights a variable in the file, marking its declaration", {

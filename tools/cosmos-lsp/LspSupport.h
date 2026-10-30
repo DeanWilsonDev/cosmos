@@ -25,5 +25,6 @@ Amanuensis::JsonValue MakeRange(std::uint32_t Line, std::uint32_t Column);
 const Amanuensis::JsonValue* FindPath(const Amanuensis::JsonValue& Root, std::initializer_list<std::string_view> Keys);
 
 bool IsGlobalPath(const std::string& Path);
+bool IsCosmosPath(const std::string& Path);
 
 } // namespace CosmosLsp

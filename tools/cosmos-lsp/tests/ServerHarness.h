@@ -148,7 +148,10 @@ public:
     }
     ~ScratchFolder() { std::filesystem::remove_all(Path_); }
 
-    void Write(const std::string& Name, const std::string& Text) const { std::ofstream(Path_ / Name) << Text; }
+    void Write(const std::string& Name, const std::string& Text) const {
+        std::filesystem::create_directories((Path_ / Name).parent_path());
+        std::ofstream(Path_ / Name) << Text;
+    }
     std::string Uri(const std::string& Name) const { return "file://" + (Path_ / Name).string(); }
 
 private:

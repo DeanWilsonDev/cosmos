@@ -61,6 +61,11 @@ constexpr int kCompletionKindClass = 7;
 constexpr int kCompletionKindKeyword = 14;
 constexpr int kCompletionKindVariable = 6;
 
+// The requests a .chaos buffer gets answers to: the ones about its class strings. Every
+// other request about a file that isn't .cosmos gets null, so a client that attaches
+// cosmos-lsp to .chaos buffers for class references sees nothing else from it there.
+bool AnswersOutsideCosmos(std::string_view Method) { return Method == "textDocument/references"; }
+
 } // namespace
 
 void Server::Run(std::FILE* In, std::FILE* Out) {
@@ -105,6 +110,14 @@ void Server::HandleMessage(const Amanuensis::JsonValue& Message) {
         Amanuensis::Json::Contains(Message, "params") ? Amanuensis::Json::Get(Message, "params") : Amanuensis::JsonValue();
     const bool               IsRequest = Amanuensis::Json::Contains(Message, "id");
     const Amanuensis::JsonValue  Id = IsRequest ? Amanuensis::Json::Get(Message, "id") : Amanuensis::JsonValue();
+
+    if (IsRequest && Method.starts_with("textDocument/") && !AnswersOutsideCosmos(Method)) {
+        const Amanuensis::JsonValue* Uri = FindPath(Params, {"textDocument", "uri"});
+        if (Uri && Amanuensis::Json::IsString(*Uri) && !IsCosmosPath(UriToPath(Amanuensis::Json::AsString(*Uri)))) {
+            Reply(Id, Amanuensis::JsonValue());
+            return;
+        }
+    }
 
     if (Method == "initialize") {
         HandleInitialize(Id, Params);
@@ -307,7 +320,7 @@ void Server::GlobalChanged(const std::string& GlobalPath) {
     const std::filesystem::path Folder = std::filesystem::path(GlobalPath).parent_path();
     for (const auto& [Uri, Doc] : Documents_) {
         const std::string Path = UriToPath(Uri);
-        if (!IsGlobalPath(Path) && std::filesystem::path(Path).parent_path() == Folder) {
+        if (IsCosmosPath(Path) && !IsGlobalPath(Path) && std::filesystem::path(Path).parent_path() == Folder) {
             PublishDiagnostics(Uri, Doc);
         }
     }
@@ -318,6 +331,9 @@ void Server::RebuildDocument(const std::string& Uri, std::string Text) {
 
     OpenDocument& Doc = Documents_[Uri];
     Doc.Text = std::move(Text);
+    if (!IsCosmosPath(Path)) {
+        return;
+    }
 
     Cosmos::Parser P(Doc.Text, Path);
     Doc.Parsed = P.Parse();
