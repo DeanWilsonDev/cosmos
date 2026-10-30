@@ -27,4 +27,6 @@ const Amanuensis::JsonValue* FindPath(const Amanuensis::JsonValue& Root, std::in
 bool IsGlobalPath(const std::string& Path);
 bool IsCosmosPath(const std::string& Path);
 
+Amanuensis::JsonValue MakeDiagnostic(Amanuensis::JsonValue Range, long long Severity, const std::string& Message);
+
 } // namespace CosmosLsp

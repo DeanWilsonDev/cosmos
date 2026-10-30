@@ -32,16 +32,6 @@ const std::string kChaos = "Card :: (props: CardProps) -> Penumbra:::Component {
                            "    return <Frame class=\"card wide\"><Text class=\"title\">{props.title}</Text></Frame>;\n"
                            "}\n";
 
-JsonValue ResultOf(const std::vector<JsonValue>& Responses, long long Id) {
-    for (const JsonValue& Message : Responses) {
-        if (Json::Contains(Message, "id") && Json::IsInteger(Json::Get(Message, "id")) &&
-            Json::AsInteger(Json::Get(Message, "id")) == Id) {
-            return Json::Get(Message, "result");
-        }
-    }
-    return JsonValue();
-}
-
 std::string HoverText(const JsonValue& Result) {
     return Json::AsString(Json::Get(Json::Get(Result, "contents"), "value"));
 }

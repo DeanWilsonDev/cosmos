@@ -44,7 +44,9 @@ that design happens, and where the resulting compiler/resolver will eventually l
   `ResolvedStyle`, backend-agnostic).
 - `tools/cosmos-lsp/` — a stdio LSP server for `.cosmos` files: diagnostics (parse errors and
   `Cosmos::CheckStylesheet`'s checks), completion, go to definition, hover, references (classes
-  in `.chaos` `class` strings too), highlights, an outline and workspace symbols — see
+  in `.chaos` `class` strings too), highlights, an outline, workspace symbols, rename for
+  variables and classes, quick fixes from the checker's suggestions, colour swatches with a
+  picker, and folding — see
   `docs/cosmos_lsp_decision.md`.
 - `editors/nvim/` — Neovim wiring for `cosmos-lsp` and syntax highlighting.
 

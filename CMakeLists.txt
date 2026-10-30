@@ -88,7 +88,8 @@ if(COSMOS_BUILD_LSP)
         tools/cosmos-lsp/JsonRpc.cpp
         tools/cosmos-lsp/LspSupport.cpp
         tools/cosmos-lsp/Navigation.cpp
-        tools/cosmos-lsp/ServerNavigation.cpp)
+        tools/cosmos-lsp/ServerNavigation.cpp
+        tools/cosmos-lsp/ServerEditing.cpp)
     target_include_directories(cosmos_lsp_lib PUBLIC tools/cosmos-lsp)
     target_link_libraries(cosmos_lsp_lib PUBLIC cosmos amanuensis)
 
@@ -123,7 +124,8 @@ if(COSMOS_BUILD_TESTS AND COSMOS_BUILD_LSP)
         tools/cosmos-lsp/tests/CompletionContextTests.cpp
         tools/cosmos-lsp/tests/ServerTests.cpp
         tools/cosmos-lsp/tests/NavigationTests.cpp
-        tools/cosmos-lsp/tests/ServerNavigationTests.cpp)
+        tools/cosmos-lsp/tests/ServerNavigationTests.cpp
+        tools/cosmos-lsp/tests/ServerEditingTests.cpp)
 
     target_link_libraries(test_cosmos_lsp PRIVATE cosmos_lsp_lib cimmerian)
     set_target_properties(test_cosmos_lsp PROPERTIES

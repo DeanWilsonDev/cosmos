@@ -93,4 +93,8 @@ std::string_view PrimitiveTagForSelector(std::string_view CosmosSelectorName);
 ResolvedStyle ResolveStyle(const IStyleTarget& Target, const StylesheetSet& Sheets,
                             std::vector<ResolveDiagnostic>& OutDiagnostics);
 
+// The colour a hex literal, rgb() or rgba() value stands for, as the resolver reads it;
+// nullopt for anything else, including an rgb() with an attr() channel.
+std::optional<Color> ColorOfValue(const ValuePart& Part);
+
 } // namespace Cosmos
