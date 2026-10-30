@@ -88,7 +88,7 @@ cosmos explain src/ui/Card.cosmos 'Frame[class="card"] > Text[class="title" size
 
 - `check` prints each problem as `file:line:column: error|warning: message` with the line
   underlined, then a count, and exits 1 when there's an error (warnings alone exit 0), so
-  it can run in CI. It reports what cosmos-lsp reports. A file named on the command line
+  it can run in CI. An unknown property is a warning: a host ignores it, as CSS does. It reports what cosmos-lsp reports. A file named on the command line
   that isn't `.cosmos` is skipped with a note, so `cosmos check src/ui/*` checks the same
   files as `cosmos check src/ui`.
 - `explain` describes an element, not a selector: tags as Chaos writes them, each with
@@ -126,6 +126,7 @@ cosmos explain src/ui/Card.cosmos 'Frame[class="card"] > Text[class="title" size
    syntax highlighting for `.cosmos` deliberately reuses it rather than a bespoke grammar
    (`docs/cosmos_lsp_decision.md` §2).
 
-Opening a `.cosmos` file should then get you diagnostics, completion (property names,
-per-property keyword values, `var(--name)` names in scope), goto-definition on
-`var(--name)` references, and CSS-based syntax highlighting.
+Opening a `.cosmos` file should then get you everything listed under What's here, with
+CSS-based syntax highlighting. `cosmos-lsp.lua` also attaches the server to `.chaos`
+buffers, so references and rename on a class find its uses in `class="..."` strings; there
+it answers only those requests and never publishes diagnostics.
