@@ -167,18 +167,21 @@ DESCRIBE("Server editing", {
                      Expected);
     });
 
-    IT("refuses a rename to a name that's taken, that isn't a name, or of a property", {
+    IT("refuses a rename to a name that's taken or isn't a name, of a property, or of an undeclared variable", {
         Project    P;
         const auto Responses = P.Run({MakeRename(2, P.Folder.Uri("Card.cosmos"), 2, 30, "--brand"),
                                       MakeRename(3, P.Folder.Uri("Card.cosmos"), 2, 30, "inset"),
                                       MakeRename(4, P.Folder.Uri("Card.cosmos"), 0, 2, "title"),
                                       MakeRename(5, P.Folder.Uri("Card.cosmos"), 0, 2, "9lives"),
-                                      MakeRename(6, P.Folder.Uri("Card.cosmos"), 3, 6, "margin")});
+                                      MakeRename(6, P.Folder.Uri("Card.cosmos"), 3, 6, "margin"),
+                                      MakeRename(7, P.Folder.Uri("Fix.cosmos"), 3, 20, "accent")});
         ASSERT_EQUAL(ErrorOf(Responses, 2), std::string("`--brand` is already used in global.cosmos, line 2."));
         ASSERT_EQUAL(ErrorOf(Responses, 3), std::string("`--inset` is already used in Card.cosmos, line 2."));
         ASSERT_EQUAL(ErrorOf(Responses, 4), std::string("`.title` is already a class in Card.chaos, line 2."));
         ASSERT_EQUAL(ErrorOf(Responses, 5), std::string("`9lives` isn't a class name."));
         ASSERT_EQUAL(ErrorOf(Responses, 6), std::string("Only a variable or a class can be renamed."));
+        ASSERT_EQUAL(ErrorOf(Responses, 7), std::string("`--accnt` isn't declared in this file or in global.cosmos, "
+                                                        "so there's nothing to rename."));
     });
 
     IT("offers the checker's suggestions as quick fixes in the requested range", {

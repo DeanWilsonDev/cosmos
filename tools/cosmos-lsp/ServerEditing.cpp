@@ -179,6 +179,13 @@ void Server::HandleRename(const JsonValue& Id, const JsonValue& Params) {
                    "`" + Requested + "` isn't a " + (IsVariable ? "variable" : "class") + " name.");
         return;
     }
+    if (IsVariable && !DeclaresVariable(Path, Symbol->Name) &&
+        (IsGlobalPath(Path) || !DeclaresVariable(GlobalPathFor(Path), Symbol->Name))) {
+        ReplyError(Id, kRequestFailed,
+                   "`--" + Symbol->Name + "` isn't declared in this file or in global.cosmos, so there's nothing to "
+                   "rename.");
+        return;
+    }
     if (NewName == Symbol->Name) {
         Reply(Id, JsonValue());
         return;

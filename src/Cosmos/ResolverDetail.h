@@ -36,6 +36,18 @@ void ApplyOneDeclaration(const Declaration& Decl, const VariableScope& Scope, st
 
 std::string StartingStyleInPseudoMessage(PseudoKind Kind);
 
+// Every rule in Sheet whose full selector matches Target, each as the chain of rules from
+// the top-level one down to it, in the order the resolver applies them.
+std::vector<std::vector<const Rule*>> MatchingRuleChains(const Stylesheet& Sheet, const IStyleTarget& Target,
+                                                         bool Unbounded);
+
+// Values as written: "8px 16px", "width 0.2s, height 0.4s", "var(--gap)".
+std::string WrittenValues(const std::vector<ValuePart>& Values);
+
+// Target's style from both layers, before anything is inherited from its ancestors.
+ResolvedStyle ResolveOwnStyle(const IStyleTarget& Target, const StylesheetSet& Sheets,
+                              std::vector<ResolveDiagnostic>& Diagnostics);
+
 } // namespace Detail
 
 } // namespace Cosmos
