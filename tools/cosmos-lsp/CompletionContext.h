@@ -39,6 +39,9 @@ struct CompletionContext {
 // re-run in full (§0 goal — see Server.h's own class comment).
 CompletionContext ClassifyCompletionContext(std::string_view Source, std::uint32_t Line, std::uint32_t Column);
 
+// Every token in Source, ending with the EndOfFile token.
+std::vector<Cosmos::Token> TokenizeDocument(std::string_view Source);
+
 // Returns the token whose source span contains (Line, Column), if any — used by
 // goto-definition to find the `var(--name)` reference (or declaration) under the
 // cursor.

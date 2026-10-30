@@ -49,6 +49,7 @@ private:
     VariableDeclaration       ParseVariableDeclaration(const Token& NameToken);
     std::vector<ValuePart>    ParseValueList();
     ValuePart                 ParseValuePart();
+    ValuePart                 ParseValuePartBody();
     ValuePart                 ParseColorFunction(const std::string& Name);
     void CheckDuplicateSelectors(const std::vector<RulePtr>& Rules);
     static std::string DescribeSelector(const Rule& R);
@@ -59,6 +60,7 @@ private:
     Token       Peek_; // one-token lookahead, needed to tell a property
                         // declaration (`ident:`) apart from a nested
                         // primitive-selector rule (`ident{`/`ident:pseudo{`)
+    SourceLocation PreviousEnd_;
     std::vector<ParseError> Errors_;
     std::size_t              NextSourceIndex_{0};
 };

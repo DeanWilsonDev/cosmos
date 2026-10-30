@@ -28,6 +28,7 @@ private:
     char PeekChar(std::size_t Offset = 1) const;
     void Advance();
     void SkipWhitespaceAndComments();
+    Token LexToken();
 
     Token LexIdentifierLike();   // identifier, var/root keywords
     Token LexClassName();        // .foo

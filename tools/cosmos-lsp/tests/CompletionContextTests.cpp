@@ -1,6 +1,7 @@
 #include "cimmerian/test.hpp"
 
 #include "CompletionContext.h"
+#include "Cosmos/Properties.h"
 #include "Cosmos/Parser.h"
 
 #include <algorithm>
@@ -91,4 +92,14 @@ DESCRIBE("CompletionContext", {
         ASSERT_EQUAL(PropertyValueKeywords("pointer-events").size(), static_cast<std::size_t>(2));
         ASSERT_EQUAL(PropertyValueKeywords("left").size(), static_cast<std::size_t>(1));
     });
+
+    IT("takes its property names and keywords from the library's table", {
+        ASSERT_EQUAL(kPropertyNames, Cosmos::PropertyNames());
+        for (const std::string_view Name : {"justify-content", "box-shadow"}) {
+            ASSERT_TRUE(std::find(kPropertyNames.begin(), kPropertyNames.end(), Name) != kPropertyNames.end());
+        }
+        ASSERT_EQUAL(PropertyValueKeywords("justify-content"),
+                     (std::vector<std::string_view>{"start", "center", "end", "space-between"}));
+    });
 });
+

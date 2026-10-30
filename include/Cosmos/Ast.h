@@ -54,12 +54,18 @@ struct ValuePart {
     // True when a comma came just before this value: `transition: width 0.2s,
     // height 0.4s` is two groups, and the second's `height` follows a comma.
     bool FollowsComma{false};
+
+    // Where the value is written: its first character, and just past its last.
+    SourceLocation Location;
+    SourceLocation End;
 };
 
 struct Declaration {
     std::string            Property;
     std::vector<ValuePart> Values; // e.g. padding: 8px 16px -> two Values
     SourceLocation         Location;
+    // Just past the last value.
+    SourceLocation End;
 };
 
 struct VariableDeclaration {

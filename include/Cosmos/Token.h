@@ -43,6 +43,8 @@ struct Token {
     TokenKind      Kind{TokenKind::Invalid};
     std::string    Text;
     SourceLocation Location;
+    // Just past the token's last character.
+    SourceLocation End;
 };
 
 } // namespace Cosmos

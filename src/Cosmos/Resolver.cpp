@@ -1,5 +1,8 @@
 #include "Cosmos/Resolver.h"
 
+#include "Cosmos/Properties.h"
+#include "ResolverDetail.h"
+
 #include <algorithm>
 #include <cctype>
 #include <charconv>
@@ -31,10 +34,6 @@ struct RuleIndex {
     SheetShape        Shape;
     RuleIndicesByName ByClass;
     RuleIndicesByName ByTag;
-};
-
-struct VariableScope {
-    std::unordered_map<std::string, ValuePart> Values;
 };
 
 struct CachedVariableScope {
@@ -86,7 +85,9 @@ const ValuePart* ResolveVariableRef(const ValuePart& Part, const VariableScope& 
     auto It = Scope.Values.find(*Part.VariableRef);
     if (It == Scope.Values.end()) {
         Diagnostics.push_back(ResolveDiagnostic{"Undefined variable `var(--" + *Part.VariableRef + ")` -- no `--" +
-                                                  *Part.VariableRef + "` is declared globally or in this component's scope."});
+                                                      *Part.VariableRef +
+                                                      "` is declared globally or in this component's scope.",
+                                                  Part.Location, Part.End});
         return nullptr;
     }
     // A variable's own value can't itself be another var() reference in any
@@ -432,12 +433,71 @@ bool IsContainerTag(std::string_view Tag) {
 }
 
 bool IsContainerOnlyProperty(const std::string& Prop) {
-    return Prop == "display" || Prop == "flex-direction" || Prop == "gap" || Prop == "align-items" ||
-           Prop == "justify-content";
+    const PropertyInfo* Info = FindProperty(Prop);
+    return Info && Info->ContainerOnly;
 }
 
-void ApplyDeclaration(const Declaration& Decl, const VariableScope& Scope, ResolvedStyle& Out,
-                       std::string_view TargetTag, std::vector<ResolveDiagnostic>& Diagnostics) {
+bool IsKeywordOf(const PropertyInfo& Info, const ValuePart& Part) {
+    return Part.Literal && std::ranges::find(Info.Keywords, std::string_view(*Part.Literal)) != Info.Keywords.end();
+}
+
+bool IsColor(const ValuePart& Part) { return ParseColor(Part).has_value(); }
+
+bool IsNumber(const ValuePart& Part) { return Part.Number.has_value(); }
+
+bool IsTransitionPart(const ValuePart& Part) {
+    if (Part.Number) {
+        return true;
+    }
+    return Part.Literal && (ParseEasing(*Part.Literal) || FindProperty(*Part.Literal));
+}
+
+bool AllOf(const std::vector<ValuePart>& Values, std::size_t Least, std::size_t Most,
+           bool (*Accepts)(const ValuePart&)) {
+    return Values.size() >= Least && Values.size() <= Most && std::ranges::all_of(Values, Accepts);
+}
+
+bool HasAcceptedShape(const PropertyInfo& Info, const std::vector<ValuePart>& Values) {
+    using Shape = PropertyValueShape;
+    switch (Info.Shape) {
+    case Shape::Color: return AllOf(Values, 1, 1, IsColor);
+    case Shape::OneOrTwoColors: return AllOf(Values, 1, 2, IsColor);
+    case Shape::Length:
+    case Shape::Size:
+    case Shape::Number:
+    case Shape::Time: return AllOf(Values, 1, 1, IsNumber);
+    case Shape::EdgeLengths: return AllOf(Values, 1, 4, IsNumber);
+    case Shape::Keyword: return Values.size() == 1 && IsKeywordOf(Info, Values[0]);
+    case Shape::KeywordList:
+        return !Values.empty() &&
+               std::ranges::all_of(Values, [&](const ValuePart& Part) { return IsKeywordOf(Info, Part); });
+    case Shape::FontPath: return Values.size() == 1 && Values[0].StringValue.has_value();
+    case Shape::Scale: return Values.size() == 1 && Values[0].Literal == "scale" && Values[0].CallArgument;
+    case Shape::Transition: return !Values.empty() && std::ranges::all_of(Values, IsTransitionPart);
+    case Shape::Shadow:
+        return AllOf(Values, 1, 2, [](const ValuePart& Part) { return IsColor(Part) || IsNumber(Part); });
+    case Shape::Fraction:
+    case Shape::Angle:
+    case Shape::Offset:
+    case Shape::Offsets:
+    case Shape::StackLevel: return true;
+    }
+    return true;
+}
+
+std::string KeywordSuggestion(const PropertyInfo& Info, const std::vector<ValuePart>& Values) {
+    if (Info.Shape != PropertyValueShape::Keyword || Values.size() != 1 || !Values[0].Literal) {
+        return {};
+    }
+    return std::string(ClosestMatch(*Values[0].Literal, Info.Keywords));
+}
+
+void ApplyDeclarationValues(const Declaration& Decl, const VariableScope& Scope, ResolvedStyle& Out,
+                             std::string_view TargetTag, std::vector<ResolveDiagnostic>& Diagnostics) {
+    const PropertyInfo* Info = FindProperty(Decl.Property);
+    if (!Info) {
+        return;
+    }
     std::vector<ValuePart> Resolved;
     Resolved.reserve(Decl.Values.size());
     for (const auto& Raw : Decl.Values) {
@@ -535,6 +595,20 @@ void ApplyDeclaration(const Declaration& Decl, const VariableScope& Scope, Resol
                                                   "` -- it only applies to containers (`Frame`, `Grid`, `Scroll`, " +
                                                   "`Inline`), and " + std::string(TargetTag) +
                                                   " is a leaf with no children to lay out."});
+        return;
+    }
+
+    if (!HasAcceptedShape(*Info, Resolved)) {
+        ResolveDiagnostic Diagnostic{Written(Prop, Resolved) + " -- `" + Prop + "` takes " + DescribeValues(*Info) + "."};
+        if (const std::string Fix = KeywordSuggestion(*Info, Resolved); !Fix.empty()) {
+            Diagnostic.Message += " Did you mean `" + Fix + "`?";
+            if (Decl.Values.size() == 1 && !Decl.Values[0].VariableRef) {
+                Diagnostic.Location   = Decl.Values[0].Location;
+                Diagnostic.End        = Decl.Values[0].End;
+                Diagnostic.Suggestion = Fix;
+            }
+        }
+        Diagnostics.push_back(std::move(Diagnostic));
         return;
     }
 
@@ -815,8 +889,18 @@ void ApplyDeclaration(const Declaration& Decl, const VariableScope& Scope, Resol
             return;
         }
     }
-    // Unknown properties are silently ignored -- v1 does no
-    // property-applicability validation (§6, "Deliberately not diagnosed").
+}
+
+void ApplyDeclaration(const Declaration& Decl, const VariableScope& Scope, ResolvedStyle& Out,
+                      std::string_view TargetTag, std::vector<ResolveDiagnostic>& Diagnostics) {
+    const std::size_t Before = Diagnostics.size();
+    ApplyDeclarationValues(Decl, Scope, Out, TargetTag, Diagnostics);
+    for (std::size_t I = Before; I < Diagnostics.size(); ++I) {
+        if (Diagnostics[I].Location.Line == 0) {
+            Diagnostics[I].Location = Decl.Location;
+            Diagnostics[I].End      = Decl.End;
+        }
+    }
 }
 
 ResolvedStyle& OverlayFor(ResolvedStyle& Base, PseudoKind Kind) {
@@ -844,11 +928,7 @@ void ApplyRuleDeclarations(const Rule& R, const VariableScope& Scope, ResolvedSt
     }
     if (R.Pseudo) {
         // An element appears once, not once per interaction state.
-        Diagnostics.push_back(ResolveDiagnostic{"`@starting-style` has no effect inside a `:" +
-                                                  std::string(R.Pseudo == PseudoKind::Hover    ? "hover"
-                                                              : R.Pseudo == PseudoKind::Active ? "active"
-                                                                                               : "disabled") +
-                                                  "` rule -- put it in the rule for the element itself."});
+        Diagnostics.push_back(ResolveDiagnostic{Detail::StartingStyleInPseudoMessage(*R.Pseudo), R.Location});
         return;
     }
     if (!Out.Starting) {
@@ -1120,6 +1200,24 @@ std::string_view PrimitiveTagForSelector(std::string_view CosmosSelectorName) {
     auto It = kMapping.find(CosmosSelectorName);
     return It == kMapping.end() ? std::string_view{} : It->second;
 }
+
+namespace Detail {
+
+VariableScope BuildScope(const StylesheetSet& Sheets) { return BuildVariableScope(Sheets.Global, Sheets.Component); }
+
+void ApplyOneDeclaration(const Declaration& Decl, const VariableScope& Scope, std::string_view TargetTag,
+                         std::vector<ResolveDiagnostic>& Diagnostics) {
+    ResolvedStyle Scratch;
+    ApplyDeclaration(Decl, Scope, Scratch, TargetTag, Diagnostics);
+}
+
+std::string StartingStyleInPseudoMessage(PseudoKind Kind) {
+    const std::string_view Name = Kind == PseudoKind::Hover ? "hover" : Kind == PseudoKind::Active ? "active" : "disabled";
+    return "`@starting-style` has no effect inside a `:" + std::string(Name) +
+           "` rule -- put it in the rule for the element itself.";
+}
+
+} // namespace Detail
 
 ResolvedStyle Resolver::Resolve(const IStyleTarget& Target, const StylesheetSet& Sheets, bool Unbounded,
                                  std::vector<ResolveDiagnostic>& OutDiagnostics) const {

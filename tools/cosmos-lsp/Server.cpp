@@ -2,6 +2,7 @@
 
 #include "CompletionContext.h"
 #include "JsonRpc.h"
+#include "Cosmos/Checker.h"
 #include "Cosmos/Parser.h"
 
 #include <filesystem>
@@ -36,11 +37,52 @@ Amanuensis::JsonValue MakePosition(std::uint32_t Line, std::uint32_t Column) {
     return Position;
 }
 
-Amanuensis::JsonValue MakeRange(std::uint32_t Line, std::uint32_t Column) {
+Amanuensis::JsonValue MakeRange(std::uint32_t Line, std::uint32_t Column, std::uint32_t EndLine,
+                                std::uint32_t EndColumn) {
     Amanuensis::JsonValue Range = Amanuensis::Json::MakeObject();
     Amanuensis::Json::Insert(Range, "start", MakePosition(Line, Column));
-    Amanuensis::Json::Insert(Range, "end", MakePosition(Line, Column));
+    Amanuensis::Json::Insert(Range, "end", MakePosition(EndLine, EndColumn));
     return Range;
+}
+
+Amanuensis::JsonValue MakeRange(std::uint32_t Line, std::uint32_t Column) { return MakeRange(Line, Column, Line, Column); }
+
+const Amanuensis::JsonValue* FindPath(const Amanuensis::JsonValue& Root, std::initializer_list<std::string_view> Keys) {
+    const Amanuensis::JsonValue* Current = &Root;
+    for (const std::string_view Key : Keys) {
+        if (!Amanuensis::Json::IsObject(*Current) || !Amanuensis::Json::Contains(*Current, std::string(Key))) {
+            return nullptr;
+        }
+        Current = &Amanuensis::Json::Get(*Current, std::string(Key));
+    }
+    return Current;
+}
+
+bool IsGlobalPath(const std::string& Path) { return std::filesystem::path(Path).filename() == "global.cosmos"; }
+
+// The range a diagnostic underlines: Start..End when the diagnostic has a span, else the
+// token that starts at Start, else one column.
+Amanuensis::JsonValue DiagnosticRange(const std::vector<Cosmos::Token>& Tokens, const Cosmos::SourceLocation& Start,
+                                      const Cosmos::SourceLocation& End) {
+    if (End.Line > Start.Line || (End.Line == Start.Line && End.Column > Start.Column)) {
+        return MakeRange(Start.Line, Start.Column, End.Line, End.Column);
+    }
+    for (const Cosmos::Token& T : Tokens) {
+        if (T.Kind != Cosmos::TokenKind::EndOfFile && T.Location.Line == Start.Line &&
+            T.Location.Column == Start.Column) {
+            return MakeRange(Start.Line, Start.Column, T.End.Line, T.End.Column);
+        }
+    }
+    return MakeRange(Start.Line, Start.Column, Start.Line, Start.Column + 1);
+}
+
+Amanuensis::JsonValue MakeDiagnostic(Amanuensis::JsonValue Range, long long Severity, const std::string& Message) {
+    Amanuensis::JsonValue Diagnostic = Amanuensis::Json::MakeObject();
+    Amanuensis::Json::Insert(Diagnostic, "range", std::move(Range));
+    Amanuensis::Json::Insert(Diagnostic, "severity", Amanuensis::JsonValue(Severity));
+    Amanuensis::Json::Insert(Diagnostic, "source", Amanuensis::JsonValue("cosmos"));
+    Amanuensis::Json::Insert(Diagnostic, "message", Amanuensis::JsonValue(Message));
+    return Diagnostic;
 }
 
 std::pair<std::uint32_t, std::uint32_t> PositionFromParams(const Amanuensis::JsonValue& Position) {
@@ -64,24 +106,6 @@ constexpr int kCompletionKindProperty = 10;
 constexpr int kCompletionKindClass = 7;
 constexpr int kCompletionKindKeyword = 14;
 constexpr int kCompletionKindVariable = 6;
-
-// A stylesheet's own sibling `global.cosmos`, if it exists and isn't the file itself --
-// the other half of §1.3's two-layer cascade. Read fresh each time rather than cached:
-// completion/goto-definition are not latency-sensitive enough here to justify tracking
-// global.cosmos as its own open-or-watched document.
-std::optional<Cosmos::Stylesheet> LoadSiblingGlobalSheet(const std::string& Path) {
-    const std::filesystem::path GlobalPath = std::filesystem::path(Path).parent_path() / "global.cosmos";
-    if (std::filesystem::path(Path).filename() == "global.cosmos") {
-        return std::nullopt;
-    }
-    const auto Text = ReadFile(GlobalPath);
-    if (!Text) {
-        return std::nullopt;
-    }
-    Cosmos::Parser     P(*Text, GlobalPath.string());
-    Cosmos::ParseResult Result = P.Parse();
-    return std::move(Result.Sheet);
-}
 
 } // namespace
 
@@ -130,7 +154,9 @@ void Server::HandleMessage(const Amanuensis::JsonValue& Message) {
 
     if (Method == "initialize") {
         HandleInitialize(Id, Params);
-    } else if (Method == "initialized" || Method == "$/setTrace" || Method == "workspace/didChangeConfiguration") {
+    } else if (Method == "initialized") {
+        HandleInitialized();
+    } else if (Method == "$/setTrace" || Method == "workspace/didChangeConfiguration") {
         // Accepted, no action needed.
     } else if (Method == "shutdown") {
         Reply(Id, Amanuensis::JsonValue());
@@ -142,6 +168,10 @@ void Server::HandleMessage(const Amanuensis::JsonValue& Message) {
         HandleDidChange(Params);
     } else if (Method == "textDocument/didClose") {
         HandleDidClose(Params);
+    } else if (Method == "textDocument/didSave") {
+        HandleDidSave(Params);
+    } else if (Method == "workspace/didChangeWatchedFiles") {
+        HandleDidChangeWatchedFiles(Params);
     } else if (Method == "textDocument/completion") {
         HandleCompletion(Id, Params);
     } else if (Method == "textDocument/definition") {
@@ -160,7 +190,11 @@ void Server::HandleMessage(const Amanuensis::JsonValue& Message) {
     // fail" guidance for messages a server doesn't recognise.
 }
 
-void Server::HandleInitialize(const Amanuensis::JsonValue& Id, const Amanuensis::JsonValue& /*Params*/) {
+void Server::HandleInitialize(const Amanuensis::JsonValue& Id, const Amanuensis::JsonValue& Params) {
+    const Amanuensis::JsonValue* Watch =
+        FindPath(Params, {"capabilities", "workspace", "didChangeWatchedFiles", "dynamicRegistration"});
+    WatchGlobalFiles_ = Watch && Amanuensis::Json::IsBoolean(*Watch) && Amanuensis::Json::AsBoolean(*Watch);
+
     Amanuensis::JsonValue Completion = Amanuensis::Json::MakeObject();
     Amanuensis::JsonValue TriggerChars = Amanuensis::Json::MakeArray();
     Amanuensis::Json::PushBack(TriggerChars, Amanuensis::JsonValue(":"));
@@ -170,7 +204,11 @@ void Server::HandleInitialize(const Amanuensis::JsonValue& Id, const Amanuensis:
     Amanuensis::Json::Insert(Completion, "triggerCharacters", std::move(TriggerChars));
 
     Amanuensis::JsonValue Capabilities = Amanuensis::Json::MakeObject();
-    Amanuensis::Json::Insert(Capabilities, "textDocumentSync", Amanuensis::JsonValue(static_cast<long long>(1))); // Full
+    Amanuensis::JsonValue Sync = Amanuensis::Json::MakeObject();
+    Amanuensis::Json::Insert(Sync, "openClose", Amanuensis::JsonValue(true));
+    Amanuensis::Json::Insert(Sync, "change", Amanuensis::JsonValue(static_cast<long long>(1)));
+    Amanuensis::Json::Insert(Sync, "save", Amanuensis::JsonValue(true));
+    Amanuensis::Json::Insert(Capabilities, "textDocumentSync", std::move(Sync));
     Amanuensis::Json::Insert(Capabilities, "completionProvider", std::move(Completion));
     Amanuensis::Json::Insert(Capabilities, "definitionProvider", Amanuensis::JsonValue(true));
 
@@ -182,6 +220,33 @@ void Server::HandleInitialize(const Amanuensis::JsonValue& Id, const Amanuensis:
     Amanuensis::Json::Insert(Result, "capabilities", std::move(Capabilities));
     Amanuensis::Json::Insert(Result, "serverInfo", std::move(ServerInfo));
     Reply(Id, std::move(Result));
+}
+
+void Server::HandleInitialized() {
+    if (!WatchGlobalFiles_) {
+        return;
+    }
+    Amanuensis::JsonValue Watcher = Amanuensis::Json::MakeObject();
+    Amanuensis::Json::Insert(Watcher, "globPattern", Amanuensis::JsonValue("**/global.cosmos"));
+    Amanuensis::JsonValue Watchers = Amanuensis::Json::MakeArray();
+    Amanuensis::Json::PushBack(Watchers, std::move(Watcher));
+    Amanuensis::JsonValue Options = Amanuensis::Json::MakeObject();
+    Amanuensis::Json::Insert(Options, "watchers", std::move(Watchers));
+    Amanuensis::JsonValue Registration = Amanuensis::Json::MakeObject();
+    Amanuensis::Json::Insert(Registration, "id", Amanuensis::JsonValue("cosmos-global-watch"));
+    Amanuensis::Json::Insert(Registration, "method", Amanuensis::JsonValue("workspace/didChangeWatchedFiles"));
+    Amanuensis::Json::Insert(Registration, "registerOptions", std::move(Options));
+    Amanuensis::JsonValue Registrations = Amanuensis::Json::MakeArray();
+    Amanuensis::Json::PushBack(Registrations, std::move(Registration));
+    Amanuensis::JsonValue Params = Amanuensis::Json::MakeObject();
+    Amanuensis::Json::Insert(Params, "registrations", std::move(Registrations));
+
+    Amanuensis::JsonValue Request = Amanuensis::Json::MakeObject();
+    Amanuensis::Json::Insert(Request, "jsonrpc", Amanuensis::JsonValue("2.0"));
+    Amanuensis::Json::Insert(Request, "id", Amanuensis::JsonValue("cosmos-lsp-watch-global"));
+    Amanuensis::Json::Insert(Request, "method", Amanuensis::JsonValue("client/registerCapability"));
+    Amanuensis::Json::Insert(Request, "params", std::move(Params));
+    JsonRpc::WriteMessage(Out_, Request);
 }
 
 void Server::HandleDidOpen(const Amanuensis::JsonValue& Params) {
@@ -204,8 +269,73 @@ void Server::HandleDidChange(const Amanuensis::JsonValue& Params) {
 }
 
 void Server::HandleDidClose(const Amanuensis::JsonValue& Params) {
-    Documents_.erase(
+    const std::string Uri =
+        Amanuensis::Json::AsString(Amanuensis::Json::Get(Amanuensis::Json::Get(Params, "textDocument"), "uri"));
+    Documents_.erase(Uri);
+    const std::string Path = UriToPath(Uri);
+    if (IsGlobalPath(Path)) {
+        GlobalChanged(Path);
+    }
+}
+
+void Server::HandleDidSave(const Amanuensis::JsonValue& Params) {
+    const std::string Path = UriToPath(
         Amanuensis::Json::AsString(Amanuensis::Json::Get(Amanuensis::Json::Get(Params, "textDocument"), "uri")));
+    if (IsGlobalPath(Path)) {
+        GlobalChanged(Path);
+    }
+}
+
+void Server::HandleDidChangeWatchedFiles(const Amanuensis::JsonValue& Params) {
+    const Amanuensis::JsonValue* Changes = FindPath(Params, {"changes"});
+    if (!Changes || !Amanuensis::Json::IsArray(*Changes)) {
+        return;
+    }
+    for (std::size_t I = 0; I < Amanuensis::Json::Size(*Changes); ++I) {
+        const Amanuensis::JsonValue* Uri = FindPath(Amanuensis::Json::At(*Changes, I), {"uri"});
+        if (!Uri || !Amanuensis::Json::IsString(*Uri)) {
+            continue;
+        }
+        const std::string Path = UriToPath(Amanuensis::Json::AsString(*Uri));
+        if (IsGlobalPath(Path)) {
+            GlobalChanged(Path);
+        }
+    }
+}
+
+std::string Server::GlobalPathFor(const std::string& Path) const {
+    return (std::filesystem::path(Path).parent_path() / "global.cosmos").string();
+}
+
+const Cosmos::Stylesheet* Server::GlobalSheetFor(const std::string& Path) {
+    if (IsGlobalPath(Path)) {
+        return nullptr;
+    }
+    const std::string GlobalPath = GlobalPathFor(Path);
+    if (const auto Open = Documents_.find(PathToUri(GlobalPath)); Open != Documents_.end()) {
+        return Open->second.Parsed.Sheet ? &*Open->second.Parsed.Sheet : nullptr;
+    }
+    auto Cached = DiskGlobals_.find(GlobalPath);
+    if (Cached == DiskGlobals_.end()) {
+        Cosmos::ParseResult Parsed;
+        if (const auto Text = ReadFile(GlobalPath)) {
+            Cosmos::Parser P(*Text, GlobalPath);
+            Parsed = P.Parse();
+        }
+        Cached = DiskGlobals_.emplace(GlobalPath, std::move(Parsed)).first;
+    }
+    return Cached->second.Sheet ? &*Cached->second.Sheet : nullptr;
+}
+
+void Server::GlobalChanged(const std::string& GlobalPath) {
+    DiskGlobals_.erase(GlobalPath);
+    const std::filesystem::path Folder = std::filesystem::path(GlobalPath).parent_path();
+    for (const auto& [Uri, Doc] : Documents_) {
+        const std::string Path = UriToPath(Uri);
+        if (!IsGlobalPath(Path) && std::filesystem::path(Path).parent_path() == Folder) {
+            PublishDiagnostics(Uri, Doc);
+        }
+    }
 }
 
 void Server::RebuildDocument(const std::string& Uri, std::string Text) {
@@ -218,17 +348,32 @@ void Server::RebuildDocument(const std::string& Uri, std::string Text) {
     Doc.Parsed = P.Parse();
 
     PublishDiagnostics(Uri, Doc);
+    if (IsGlobalPath(Path)) {
+        GlobalChanged(Path);
+    }
 }
 
 void Server::PublishDiagnostics(const std::string& Uri, const OpenDocument& Doc) {
-    Amanuensis::JsonValue Diagnostics = Amanuensis::Json::MakeArray();
+    const std::vector<Cosmos::Token> Tokens = TokenizeDocument(Doc.Text);
+    Amanuensis::JsonValue            Diagnostics = Amanuensis::Json::MakeArray();
     for (const Cosmos::ParseError& Err : Doc.Parsed.Errors) {
-        Amanuensis::JsonValue Diagnostic = Amanuensis::Json::MakeObject();
-        Amanuensis::Json::Insert(Diagnostic, "range", MakeRange(Err.Location.Line, Err.Location.Column));
-        Amanuensis::Json::Insert(Diagnostic, "severity", Amanuensis::JsonValue(static_cast<long long>(1))); // Error
-        Amanuensis::Json::Insert(Diagnostic, "source", Amanuensis::JsonValue("cosmos"));
-        Amanuensis::Json::Insert(Diagnostic, "message", Amanuensis::JsonValue(Err.Message));
-        Amanuensis::Json::PushBack(Diagnostics, std::move(Diagnostic));
+        Amanuensis::Json::PushBack(Diagnostics,
+                                   MakeDiagnostic(DiagnosticRange(Tokens, Err.Location, Err.Location), 1, Err.Message));
+    }
+    if (Doc.Parsed.Sheet) {
+        const std::string     Path = UriToPath(Uri);
+        Cosmos::StylesheetSet Sheets;
+        if (IsGlobalPath(Path)) {
+            Sheets.Global = &*Doc.Parsed.Sheet;
+        } else {
+            Sheets.Global    = GlobalSheetFor(Path);
+            Sheets.Component = &*Doc.Parsed.Sheet;
+        }
+        for (const Cosmos::CheckDiagnostic& Found : Cosmos::CheckStylesheet(Sheets)) {
+            const long long Severity = Found.Severity == Cosmos::CheckSeverity::Error ? 1 : 2;
+            Amanuensis::Json::PushBack(
+                Diagnostics, MakeDiagnostic(DiagnosticRange(Tokens, Found.Location, Found.End), Severity, Found.Message));
+        }
     }
 
     Amanuensis::JsonValue Params = Amanuensis::Json::MakeObject();
@@ -252,7 +397,7 @@ void Server::HandleCompletion(const Amanuensis::JsonValue& Id, const Amanuensis:
             for (const auto* V : CollectInScopeVariables(*Doc.Parsed.Sheet)) {
                 Amanuensis::Json::PushBack(Items, MakeCompletionItem(V->Name, kCompletionKindVariable));
             }
-            if (const auto Global = LoadSiblingGlobalSheet(UriToPath(Uri))) {
+            if (const Cosmos::Stylesheet* Global = GlobalSheetFor(UriToPath(Uri))) {
                 for (const auto* V : CollectInScopeVariables(*Global)) {
                     Amanuensis::Json::PushBack(Items, MakeCompletionItem(V->Name, kCompletionKindVariable));
                 }
@@ -316,10 +461,10 @@ void Server::HandleDefinition(const Amanuensis::JsonValue& Id, const Amanuensis:
     }
 
     const std::string Path = UriToPath(Uri);
-    if (const auto Global = LoadSiblingGlobalSheet(Path)) {
+    if (const Cosmos::Stylesheet* Global = GlobalSheetFor(Path)) {
         for (const auto* V : CollectInScopeVariables(*Global)) {
             if (V->Name == Token->Text) {
-                const std::filesystem::path GlobalPath = std::filesystem::path(Path).parent_path() / "global.cosmos";
+                const std::filesystem::path GlobalPath = GlobalPathFor(Path);
                 Amanuensis::JsonValue Location = Amanuensis::Json::MakeObject();
                 Amanuensis::Json::Insert(Location, "uri", Amanuensis::JsonValue(PathToUri(GlobalPath.string())));
                 Amanuensis::Json::Insert(Location, "range", MakeRange(V->Location.Line, V->Location.Column));
