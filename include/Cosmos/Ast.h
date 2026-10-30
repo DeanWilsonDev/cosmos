@@ -112,6 +112,9 @@ struct Rule {
     std::size_t SourceIndex{0};
 
     SourceLocation Location;
+    // Just past the selector (its pseudo-class included), and just past the block's `}`.
+    SourceLocation SelectorEnd;
+    SourceLocation End;
 };
 
 // A `:root { }` block — declares global.cosmos's project-wide variables
@@ -121,6 +124,7 @@ struct Rule {
 struct RootBlock {
     std::vector<VariableDeclaration> Variables;
     SourceLocation                   Location;
+    SourceLocation                   End;
 };
 
 struct RuleIndex;

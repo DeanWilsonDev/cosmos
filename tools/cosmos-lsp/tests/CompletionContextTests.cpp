@@ -22,7 +22,7 @@ const std::string kSource =
     "    background-color: var(--color-primary);\n"    // line 9
     "\n"                                                // line 10
     "    .card-title {\n"                              // line 11
-    "        font-size: 20px;\n"                        // line 12
+    "        --nested: 2px;\n"                          // line 12
     "    }\n"                                           // line 13
     "}\n";                                              // line 14
 // clang-format on
@@ -59,16 +59,17 @@ DESCRIBE("CompletionContext", {
         ASSERT_TRUE(Token->Text == "color-primary");
     });
 
-    IT("collects :root's and a top-level rule's own variables, not a nested rule's", {
+    IT("collects :root's variables and every rule's, nested ones included, as the resolver does", {
         Cosmos::Parser              P(kSource, "test.cosmos");
         const Cosmos::ParseResult   Result = P.Parse();
         REQUIRE_TRUE(Result.Errors.empty());
         REQUIRE_TRUE(Result.Sheet.has_value());
 
         const auto Vars = CollectInScopeVariables(*Result.Sheet);
-        REQUIRE_EQUAL(Vars.size(), static_cast<std::size_t>(2));
+        REQUIRE_EQUAL(Vars.size(), static_cast<std::size_t>(3));
         ASSERT_TRUE(Vars[0]->Name == "color-primary");
         ASSERT_TRUE(Vars[1]->Name == "local");
+        ASSERT_TRUE(Vars[2]->Name == "nested");
     });
 
     IT("offers property names and primitive selectors inside a block, not var names", {

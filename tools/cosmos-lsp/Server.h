@@ -8,6 +8,7 @@
 #include <cstdio>
 #include <filesystem>
 #include <optional>
+#include <vector>
 #include <string>
 #include <unordered_map>
 
@@ -48,6 +49,16 @@ private:
     void HandleDidClose(const Amanuensis::JsonValue& Params);
     void HandleCompletion(const Amanuensis::JsonValue& Id, const Amanuensis::JsonValue& Params);
     void HandleDefinition(const Amanuensis::JsonValue& Id, const Amanuensis::JsonValue& Params);
+    void HandleHover(const Amanuensis::JsonValue& Id, const Amanuensis::JsonValue& Params);
+    void HandleReferences(const Amanuensis::JsonValue& Id, const Amanuensis::JsonValue& Params);
+    void HandleDocumentHighlight(const Amanuensis::JsonValue& Id, const Amanuensis::JsonValue& Params);
+    void HandleDocumentSymbol(const Amanuensis::JsonValue& Id, const Amanuensis::JsonValue& Params);
+    void HandleWorkspaceSymbol(const Amanuensis::JsonValue& Id, const Amanuensis::JsonValue& Params);
+
+    // A file's text: its open buffer when it's open, else the copy on disk.
+    std::optional<std::string> TextOf(const std::string& Path) const;
+    std::vector<std::string> CosmosFilesBeside(const std::string& Path) const;
+    std::vector<std::string> ChaosFilesUnder(const std::filesystem::path& Folder) const;
 
     // Reparses Documents_[Uri] from Text and publishes fresh diagnostics — the one path
     // both didOpen and didChange funnel through.
@@ -60,8 +71,9 @@ private:
     std::string               GlobalPathFor(const std::string& Path) const;
     void                      GlobalChanged(const std::string& GlobalPath);
 
-    std::FILE* Out_{nullptr};
-    bool       WatchGlobalFiles_{false};
+    std::FILE*  Out_{nullptr};
+    bool        WatchGlobalFiles_{false};
+    std::string RootPath_;
 
     std::unordered_map<std::string, OpenDocument>        Documents_;
     struct DiskSheet {

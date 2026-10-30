@@ -42,8 +42,10 @@ that design happens, and where the resulting compiler/resolver will eventually l
 - `include/Cosmos/`, `src/Cosmos/` — the core library: `Tokenizer`/`Parser` (parses one
   `.cosmos` file into the `Ast.h` tree) and `Resolver` (cascade + variable resolution down to
   `ResolvedStyle`, backend-agnostic).
-- `tools/cosmos-lsp/` — a stdio LSP server for `.cosmos` files (completion, goto-definition,
-  diagnostics — see `docs/cosmos_lsp_decision.md`).
+- `tools/cosmos-lsp/` — a stdio LSP server for `.cosmos` files: diagnostics (parse errors and
+  `Cosmos::CheckStylesheet`'s checks), completion, go to definition, hover, references (classes
+  in `.chaos` `class` strings too), highlights, an outline and workspace symbols — see
+  `docs/cosmos_lsp_decision.md`.
 - `editors/nvim/` — Neovim wiring for `cosmos-lsp` and syntax highlighting.
 
 ## Build

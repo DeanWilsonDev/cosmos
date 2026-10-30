@@ -47,11 +47,12 @@ std::vector<Cosmos::Token> TokenizeDocument(std::string_view Source);
 // cursor.
 std::optional<Cosmos::Token> TokenAtPosition(std::string_view Source, std::uint32_t Line, std::uint32_t Column);
 
-// Every `--name` in scope for Sheet: :root's own variables plus each top-level rule's
-// own component-scoped variables (docs/cosmos_core_spec.md §1.4 — a nested rule's own
-// `--variable` is scoped to that rule alone, never wider, so nested rules are
-// deliberately not walked here).
+// Every `--name` the resolver sees in Sheet: :root's, and every rule's at any depth, as
+// Cosmos::Resolver's variable scope collects them.
 std::vector<const Cosmos::VariableDeclaration*> CollectInScopeVariables(const Cosmos::Stylesheet& Sheet);
+
+// :root's variables alone: all of global.cosmos a component's stylesheet can see.
+std::vector<const Cosmos::VariableDeclaration*> CollectRootVariables(const Cosmos::Stylesheet& Sheet);
 
 // Static language data, straight from docs/cosmos_core_spec.md §1.1/§2.
 extern const std::vector<std::string_view> kPropertyNames;
