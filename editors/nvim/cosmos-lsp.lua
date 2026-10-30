@@ -11,7 +11,7 @@
 --
 -- It also attaches to .chaos buffers (beside chaos-lsp, which owns them), so references
 -- from a `class="card"` string find `.card`'s selectors and every other use. For a .chaos
--- buffer cosmos-lsp answers references only and publishes no diagnostics.
+-- buffer cosmos-lsp answers references and rename only, and publishes no diagnostics.
 
 vim.filetype.add({ extension = { cosmos = "cosmos", chaos = "chaos" } })
 
