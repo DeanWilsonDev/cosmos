@@ -68,7 +68,9 @@ add_subdirectory(libs/amanuensis)
 add_library(cosmos STATIC
     src/Cosmos/Tokenizer.cpp
     src/Cosmos/Parser.cpp
-    src/Cosmos/Resolver.cpp)
+    src/Cosmos/Resolver.cpp
+    src/Cosmos/Properties.cpp
+    src/Cosmos/Checker.cpp)
 
 target_include_directories(cosmos PUBLIC include)
 target_compile_features(cosmos PUBLIC cxx_std_26)
@@ -102,7 +104,9 @@ if(COSMOS_BUILD_TESTS)
         tests/TokenizerTests.cpp
         tests/ParserTests.cpp
         tests/ResolverTests.cpp
-        tests/InheritanceTests.cpp)
+        tests/InheritanceTests.cpp
+        tests/PropertiesTests.cpp
+        tests/CheckerTests.cpp)
 
     target_link_libraries(test_cosmos PRIVATE cosmos cimmerian)
     set_target_properties(test_cosmos PROPERTIES

@@ -1,0 +1,41 @@
+#pragma once
+
+#include "Cosmos/Ast.h"
+#include "Cosmos/Resolver.h"
+
+#include <string>
+#include <string_view>
+#include <unordered_map>
+#include <vector>
+
+namespace Cosmos {
+
+struct VariableScope {
+    std::unordered_map<std::string, ValuePart> Values;
+};
+
+namespace Detail {
+
+// Where a value leads once each var() is followed: the value it ends at, or the name no
+// declaration has (and the value that names it), or the names that lead back to themselves.
+struct VariableLookup {
+    const ValuePart*         Value{nullptr};
+    std::string              Missing;
+    const ValuePart*         MissingAt{nullptr};
+    std::vector<std::string> Cycle;
+};
+
+VariableLookup LookUpVariable(const ValuePart& Part, const VariableScope& Scope);
+std::string    UndefinedVariableMessage(const std::string& Name);
+std::string    VariableCycleMessage(const std::vector<std::string>& Cycle);
+
+VariableScope BuildScope(const StylesheetSet& Sheets);
+
+void ApplyOneDeclaration(const Declaration& Decl, const VariableScope& Scope, std::string_view TargetTag,
+                         std::vector<ResolveDiagnostic>& Diagnostics);
+
+std::string StartingStyleInPseudoMessage(PseudoKind Kind);
+
+} // namespace Detail
+
+} // namespace Cosmos

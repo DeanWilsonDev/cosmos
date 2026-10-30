@@ -228,4 +228,22 @@ DESCRIBE("Parser", {
         REQUIRE_TRUE(Result.Sheet.has_value());
         ASSERT_EQUAL(Result.Sheet->Rules.size(), std::size_t{3});
     });
+
+    IT("records where each value starts and ends, and where a declaration ends", {
+        Parser TheParser(".a {\n    padding: var(--pad) 16px;\n    color: rgba(0, 0, 0, 128);\n}\n", "test.cosmos");
+        const ParseResult Result = TheParser.Parse();
+        REQUIRE_TRUE(Result.Errors.empty());
+
+        const Declaration& Padding = Result.Sheet->Rules[0]->Declarations[0];
+        ASSERT_EQUAL(Padding.Values[0].Location.Column, static_cast<std::uint32_t>(14));
+        ASSERT_EQUAL(Padding.Values[0].End.Column, static_cast<std::uint32_t>(24));
+        ASSERT_EQUAL(Padding.Values[1].Location.Column, static_cast<std::uint32_t>(25));
+        ASSERT_EQUAL(Padding.End.Column, static_cast<std::uint32_t>(29));
+
+        const Declaration& Color = Result.Sheet->Rules[0]->Declarations[1];
+        ASSERT_EQUAL(Color.Values[0].Location.Column, static_cast<std::uint32_t>(12));
+        ASSERT_EQUAL(Color.Values[0].End.Column, static_cast<std::uint32_t>(30));
+        ASSERT_EQUAL(Color.End.Line, static_cast<std::uint32_t>(3));
+    });
 });
+

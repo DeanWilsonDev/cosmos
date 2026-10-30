@@ -231,6 +231,9 @@ struct ResolvedStyle {
     std::optional<float> ScrollbarWidthLogical;
     std::optional<Color> SelectionColor;
     std::optional<Color> AccentColor;
+
+    // The overlays (Hover, Active, Disabled, Starting) compare by pointer, not by value.
+    friend bool operator==(const ResolvedStyle&, const ResolvedStyle&) = default;
 };
 
 } // namespace Cosmos

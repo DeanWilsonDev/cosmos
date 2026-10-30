@@ -110,4 +110,19 @@ DESCRIBE("Tokenizer", {
         const Token T1 = Tok.NextToken();
         ASSERT_TRUE(T1.Kind == TokenKind::StringLiteral && T1.Text == "assets/fonts/body.ttf");
     });
+
+    IT("ends each token just past its last character, punctuation included", {
+        Tokenizer Tok(".card {\n  --pad: \"a b\";\n}", "test.cosmos");
+
+        const Token Class = Tok.NextToken();
+        ASSERT_EQUAL(Class.End.Column, static_cast<std::uint32_t>(6));
+        Tok.NextToken();
+        const Token Variable = Tok.NextToken();
+        ASSERT_EQUAL(Variable.Location.Column, static_cast<std::uint32_t>(3));
+        ASSERT_EQUAL(Variable.End.Column, static_cast<std::uint32_t>(8));
+        Tok.NextToken();
+        const Token String = Tok.NextToken();
+        ASSERT_EQUAL(String.End.Line, static_cast<std::uint32_t>(2));
+        ASSERT_EQUAL(String.End.Column, static_cast<std::uint32_t>(15));
+    });
 });

@@ -48,6 +48,7 @@ Parser::Parser(std::string_view Source, std::string FilePath)
 }
 
 void Parser::Advance() {
+    PreviousEnd_ = Current_.End;
     Current_ = Peek_;
     Peek_ = Tokenizer_.NextToken();
 }
@@ -117,6 +118,14 @@ std::optional<RootBlock> Parser::TryParseRootBlock() {
 }
 
 ValuePart Parser::ParseValuePart() {
+    const SourceLocation Start = Current_.Location;
+    ValuePart            Part  = ParseValuePartBody();
+    Part.Location             = Start;
+    Part.End                  = PreviousEnd_;
+    return Part;
+}
+
+ValuePart Parser::ParseValuePartBody() {
     if (Check(TokenKind::VarKeyword)) {
         Advance();
         Expect(TokenKind::OpenParen, "Expected `(` after `var`.");
@@ -229,6 +238,7 @@ Declaration Parser::ParseDeclaration(const Token& PropertyToken) {
     Decl.Location = PropertyToken.Location;
     Expect(TokenKind::Colon, "Expected `:` after property name `" + PropertyToken.Text + "`.");
     Decl.Values = ParseValueList();
+    Decl.End    = Decl.Values.empty() ? PropertyToken.End : Decl.Values.back().End;
     Expect(TokenKind::Semicolon, "Expected `;` after declaration.");
     return Decl;
 }

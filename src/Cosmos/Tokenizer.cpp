@@ -63,6 +63,12 @@ void Tokenizer::SkipWhitespaceAndComments() {
 }
 
 Token Tokenizer::NextToken() {
+    Token Next = LexToken();
+    Next.End   = CurrentLocation();
+    return Next;
+}
+
+Token Tokenizer::LexToken() {
     SkipWhitespaceAndComments();
 
     if (AtEnd()) {

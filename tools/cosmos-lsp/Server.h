@@ -6,6 +6,8 @@
 #include <amanuensis.hpp>
 
 #include <cstdio>
+#include <filesystem>
+#include <optional>
 #include <string>
 #include <unordered_map>
 
@@ -38,6 +40,9 @@ private:
     void Notify(const std::string& Method, Amanuensis::JsonValue Params);
 
     void HandleInitialize(const Amanuensis::JsonValue& Id, const Amanuensis::JsonValue& Params);
+    void HandleInitialized();
+    void HandleDidSave(const Amanuensis::JsonValue& Params);
+    void HandleDidChangeWatchedFiles(const Amanuensis::JsonValue& Params);
     void HandleDidOpen(const Amanuensis::JsonValue& Params);
     void HandleDidChange(const Amanuensis::JsonValue& Params);
     void HandleDidClose(const Amanuensis::JsonValue& Params);
@@ -49,9 +54,21 @@ private:
     void RebuildDocument(const std::string& Uri, std::string Text);
     void PublishDiagnostics(const std::string& Uri, const OpenDocument& Doc);
 
-    std::FILE* Out_{nullptr};
+    // The global.cosmos beside Path: its open buffer when it's open, else the copy on disk.
+    // Null for global.cosmos itself, or when there's none.
+    const Cosmos::Stylesheet* GlobalSheetFor(const std::string& Path);
+    std::string               GlobalPathFor(const std::string& Path) const;
+    void                      GlobalChanged(const std::string& GlobalPath);
 
-    std::unordered_map<std::string, OpenDocument> Documents_;
+    std::FILE* Out_{nullptr};
+    bool       WatchGlobalFiles_{false};
+
+    std::unordered_map<std::string, OpenDocument>        Documents_;
+    struct DiskSheet {
+        Cosmos::ParseResult                            Parsed;
+        std::optional<std::filesystem::file_time_type> Stamp;
+    };
+    std::unordered_map<std::string, DiskSheet> DiskGlobals_;
 };
 
 } // namespace CosmosLsp

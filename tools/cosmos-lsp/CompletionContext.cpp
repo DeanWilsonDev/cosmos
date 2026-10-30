@@ -1,5 +1,6 @@
 #include "CompletionContext.h"
 
+#include "Cosmos/Properties.h"
 #include "Cosmos/Tokenizer.h"
 
 namespace CosmosLsp {
@@ -100,6 +101,8 @@ CompletionContext ClassifyCompletionContext(std::string_view Source, std::uint32
     return State;
 }
 
+std::vector<Cosmos::Token> TokenizeDocument(std::string_view Source) { return TokenizeAll(Source); }
+
 std::optional<Cosmos::Token> TokenAtPosition(std::string_view Source, std::uint32_t Line, std::uint32_t Column) {
     for (const Cosmos::Token& T : TokenizeAll(Source)) {
         if (T.Kind == Cosmos::TokenKind::EndOfFile) {
@@ -131,76 +134,25 @@ std::vector<const Cosmos::VariableDeclaration*> CollectInScopeVariables(const Co
     return Result;
 }
 
-const std::vector<std::string_view> kPropertyNames{
-    "background-color", "background-gradient-start", "background-gradient-end",
-    "border-color",     "border-width",               "border-radius",
-    "padding",          "margin",                      "color",
-    "font-family",      "font-size",                   "display",
-    "flex-direction",   "gap",                         "align-items",
-    "width",            "height",                      "min-width",
-    "max-width",        "text-overflow",               "white-space",
-    "transform",        "transition",                  "flex-grow",
-    "scrollbar-color",  "scrollbar-width",             "font-style",
-    "text-decoration",  "opacity",                     "axis-color",
-    "axis-width",       "grid-color",                  "grid-width",
-    "hover-color",      "tick-spacing",                "label-gap",
-    "line-width",       "point-radius",                "hover-point-radius",
-    "area-opacity",     "bar-gap",                     "bar-radius",
-    "donut-thickness",  "segment-gap",                 "appear-duration",
-    "change-duration",  "selection-color",             "accent-color",
-    "position",
-    "top",              "right",                       "bottom",
-    "left",             "inset",                       "z-index",
-    "pointer-events",
-};
+const std::vector<std::string_view> kPropertyNames = Cosmos::PropertyNames();
 
 const std::vector<std::string_view> kPrimitiveSelectorNames{
     "frame",    "inline",   "grid",      "image",      "text",   "scroll", "input",
     "textarea", "barchart", "linechart", "donutchart", "series", "slice",
 };
 
-const std::vector<std::string_view> kPseudoClassNames{
-    "hover",
-    "active",
-    "disabled",
-};
+const std::vector<std::string_view> kPseudoClassNames = [] {
+    std::vector<std::string_view> Names;
+    for (const Cosmos::PseudoClassInfo& PseudoClass : Cosmos::AllPseudoClasses()) {
+        Names.push_back(PseudoClass.Name);
+    }
+    return Names;
+}();
 
 std::vector<std::string_view> PropertyValueKeywords(std::string_view Property) {
-    if (Property == "display") {
-        return {"stack", "inline"};
-    }
-    if (Property == "flex-direction") {
-        return {"row", "column"};
-    }
-    if (Property == "align-items") {
-        return {"start", "center", "end", "stretch"};
-    }
-    if (Property == "text-overflow") {
-        return {"clip", "ellipsis"};
-    }
-    if (Property == "white-space") {
-        return {"nowrap", "normal"};
-    }
-    if (Property == "font-style") {
-        return {"normal", "italic"};
-    }
-    if (Property == "text-decoration") {
-        return {"none", "underline", "line-through"};
-    }
-    if (Property == "transition") {
-        return {"linear", "ease", "ease-in", "ease-out", "ease-in-out"};
-    }
-    if (Property == "position") {
-        return {"static", "relative", "absolute", "fixed", "sticky"};
-    }
-    if (Property == "pointer-events") {
-        return {"auto", "none"};
-    }
-    if (Property == "top" || Property == "right" || Property == "bottom" || Property == "left" ||
-        Property == "inset" || Property == "z-index") {
-        return {"auto"};
-    }
-    return {};
+    const Cosmos::PropertyInfo* Info = Cosmos::FindProperty(Property);
+    return Info ? std::vector<std::string_view>(Info->Keywords.begin(), Info->Keywords.end())
+                : std::vector<std::string_view>{};
 }
 
 } // namespace CosmosLsp

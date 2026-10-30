@@ -49,6 +49,12 @@ struct StylesheetSet {
 
 struct ResolveDiagnostic {
     std::string Message;
+    // The declaration, value or rule the diagnostic is about. Its FilePath is the path the
+    // stylesheet was parsed with.
+    SourceLocation Location{"", 0, 0};
+    SourceLocation End{"", 0, 0};
+    // Text that fixes the diagnostic when it replaces Location..End, if there's one likely fix.
+    std::string Suggestion;
 };
 
 // Parses, cascades, and resolves variables/selectors down to a concrete
