@@ -170,9 +170,26 @@ int CheckCommand(const std::vector<std::string>& Arguments, std::ostream& Out, s
         }
         if (std::filesystem::is_directory(Argument)) {
             std::ranges::move(CosmosFilesUnder(Argument), std::back_inserter(Files));
+        } else if (std::filesystem::path(Argument).extension() != ".cosmos") {
+            Err << "note: skipping '" << Argument << "', which isn't a .cosmos file\n";
         } else {
             Files.push_back(Argument);
         }
+    }
+    std::vector<std::string> Unique;
+    for (const std::string& Path : Files) {
+        const auto Same = [&](const std::string& Kept) {
+            std::error_code Error;
+            return Kept == Path || std::filesystem::equivalent(Kept, Path, Error);
+        };
+        if (std::ranges::none_of(Unique, Same)) {
+            Unique.push_back(Path);
+        }
+    }
+    Files = std::move(Unique);
+    if (Files.empty()) {
+        Err << "warning: no .cosmos files to check\n";
+        return kExitSuccess;
     }
 
     std::map<std::string, std::unique_ptr<ParsedFile>> Globals;

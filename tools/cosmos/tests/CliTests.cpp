@@ -121,6 +121,21 @@ DESCRIBE("cosmos command line", {
         ASSERT_TRUE(Broken.Err.find("error: can't read 'Missing.cosmos'\n") != std::string::npos);
     });
 
+    IT("skips files that aren't stylesheets, checks each file once, and says when there's nothing to check", {
+        ScratchFolder Folder;
+        Folder.Write("Card.cosmos", ".card { colr: red; }\n");
+        Folder.Write("Card.chaos", "<frame class=\"card\" />\n");
+        Folder.Write("empty/README.md", "nothing here\n");
+        const Run Globbed =
+            RunCli({"check", Folder.Path("Card.chaos"), Folder.Path("Card.cosmos"), Folder.Path()}, &Folder);
+        ASSERT_EQUAL(Globbed.Exit, kExitSuccess);
+        ASSERT_TRUE(Globbed.Err.starts_with("note: skipping 'Card.chaos', which isn't a .cosmos file\n"));
+        ASSERT_TRUE(Globbed.Err.ends_with("checked 1 file: 0 errors, 1 warning\n"));
+        const Run Empty = RunCli({"check", Folder.Path("empty")}, &Folder);
+        ASSERT_EQUAL(Empty.Exit, kExitSuccess);
+        ASSERT_EQUAL(Empty.Err, std::string("warning: no .cosmos files to check\n"));
+    });
+
     IT("prints tokens with their positions", {
         ScratchFolder Folder;
         Folder.Write("Tiny.cosmos", ".a { gap: 4px; }\n");

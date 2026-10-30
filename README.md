@@ -87,7 +87,9 @@ cosmos explain src/ui/Card.cosmos 'Frame[class="card"] > Text[class="title" size
 
 - `check` prints each problem as `file:line:column: error|warning: message` with the line
   underlined, then a count, and exits 1 when there's an error (warnings alone exit 0), so
-  it can run in CI. It reports what cosmos-lsp reports.
+  it can run in CI. It reports what cosmos-lsp reports. A file named on the command line
+  that isn't `.cosmos` is skipped with a note, so `cosmos check src/ui/*` checks the same
+  files as `cosmos check src/ui`.
 - `explain` describes an element, not a selector: tags as Chaos writes them, each with
   its `class` and other props in `[...]`, outermost first, each the previous one's child,
   and an optional `:hover`, `:active` or `:disabled` on the last. It prints every rule that
