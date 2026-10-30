@@ -386,6 +386,14 @@ ParseResult Parser::Parse() {
     }
 
     while (!Check(TokenKind::EndOfFile)) {
+        // A `}` with no rule open. RecoverToNextRule() stops at a `}` (it closes a nested rule's
+        // parent), so at the top level it has to be stepped past here, or the loop would stay
+        // on it forever.
+        if (Check(TokenKind::CloseBrace)) {
+            Errors_.push_back(ParseError{"Unexpected `}` with no rule open.", Current_.Location});
+            Advance();
+            continue;
+        }
         if (RulePtr R = ParseRule()) {
             Sheet.Rules.push_back(std::move(R));
         }

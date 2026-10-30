@@ -5,6 +5,23 @@
 using namespace Cosmos;
 
 DESCRIBE("Parser", {
+    IT("reports a stray top-level `}` and returns instead of looping", {
+        Parser Alone("}\n.after { color: #FFFFFF; }\n", "stray.cosmos");
+        const ParseResult AloneResult = Alone.Parse();
+        ASSERT_EQUAL(AloneResult.Errors.size(), static_cast<std::size_t>(1));
+        REQUIRE_TRUE(AloneResult.Sheet.has_value());
+        ASSERT_EQUAL(AloneResult.Sheet->Rules.size(), static_cast<std::size_t>(1));
+
+        // A nested `:hover { }` isn't Cosmos syntax: its `}` closes `.button`, and `.button`'s own
+        // `}` is left at the top level (found by Lantern's in-game UI, 2026-10-30).
+        Parser Nested(".button {\n    padding: 2px;\n    :hover {\n        background-color: #FFD24D;\n    }\n}\n",
+                      "nested-hover.cosmos");
+        const ParseResult NestedResult = Nested.Parse();
+        ASSERT_FALSE(NestedResult.Errors.empty());
+        REQUIRE_TRUE(NestedResult.Sheet.has_value());
+        ASSERT_EQUAL(NestedResult.Sheet->Rules.size(), static_cast<std::size_t>(1));
+    });
+
     IT("parses the HealthBar worked example (docs/cosmos_core_spec.md §4)", {
         const std::string Source = R"(
 .health-bar {
