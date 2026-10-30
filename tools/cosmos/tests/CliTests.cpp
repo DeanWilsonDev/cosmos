@@ -136,6 +136,36 @@ DESCRIBE("cosmos command line", {
         ASSERT_EQUAL(Empty.Err, std::string("warning: no .cosmos files to check\n"));
     });
 
+    IT("formats files in place, with settings from the nearest .nyx.json", {
+        ScratchFolder Folder;
+        Folder.Write(".nyx.json", "{ \"format\": { \"indentWidth\": 2 } }\n");
+        Folder.Write("ui/Card.cosmos", ".card{gap: 4px;}\n");
+        Folder.Write("ui/Done.cosmos", ".done {\n  gap: 4px;\n}\n");
+        const Run Checked = RunCli({"fmt", "--check", Folder.Path("ui")}, &Folder);
+        ASSERT_EQUAL(Checked.Exit, kExitFailure);
+        ASSERT_EQUAL(Checked.Out, std::string("ui/Card.cosmos\n"));
+        ASSERT_EQUAL(Checked.Err, std::string("1 file isn't formatted\n"));
+        const Run Formatted = RunCli({"fmt", Folder.Path("ui")}, &Folder);
+        ASSERT_EQUAL(Formatted.Exit, kExitSuccess);
+        ASSERT_EQUAL(Formatted.Out, std::string("formatted ui/Card.cosmos\n"));
+        std::ifstream     Written(Folder.Path("ui/Card.cosmos"));
+        std::stringstream Text;
+        Text << Written.rdbuf();
+        ASSERT_EQUAL(Text.str(), std::string(".card {\n  gap: 4px;\n}\n"));
+        ASSERT_EQUAL(RunCli({"fmt", "--check", Folder.Path("ui")}, &Folder).Exit, kExitSuccess);
+    });
+
+    IT("leaves a file with syntax errors alone, and warns about a bad .nyx.json", {
+        ScratchFolder Folder;
+        Folder.Write(".nyx.json", "{ \"format\": { \"indentWidth\": 40 } }\n");
+        Folder.Write("Broken.cosmos", ".broken { gap: 4px\n");
+        const Run Broken = RunCli({"fmt", Folder.Path("Broken.cosmos")}, &Folder);
+        ASSERT_EQUAL(Broken.Exit, kExitFailure);
+        ASSERT_TRUE(Broken.Err.starts_with("warning: 'format.indentWidth' must be a whole number from 1 to 16\n"));
+        ASSERT_TRUE(Broken.Err.ends_with("error: Broken.cosmos: not formatted, because it has syntax errors\n"));
+        ASSERT_EQUAL(RunCli({"fmt", "--check"}).Exit, kExitUsage);
+    });
+
     IT("prints tokens with their positions", {
         ScratchFolder Folder;
         Folder.Write("Tiny.cosmos", ".a { gap: 4px; }\n");

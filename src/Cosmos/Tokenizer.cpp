@@ -14,8 +14,8 @@ bool StartsNumber(char C, char Next, char AfterNext) {
 }
 } // namespace
 
-Tokenizer::Tokenizer(std::string_view Source, std::string FilePath)
-    : Source_(Source), FilePath_(std::move(FilePath)) {}
+Tokenizer::Tokenizer(std::string_view Source, std::string FilePath, CommentHandling Comments)
+    : Source_(Source), FilePath_(std::move(FilePath)), Comments_(Comments) {}
 
 bool Tokenizer::AtEnd() const { return Pos_ >= Source_.size(); }
 
@@ -46,7 +46,7 @@ void Tokenizer::SkipWhitespaceAndComments() {
         while (!AtEnd() && std::isspace(static_cast<unsigned char>(CurrentChar()))) {
             Advance();
         }
-        if (CurrentChar() == '/' && PeekChar() == '*') {
+        if (CurrentChar() == '/' && PeekChar() == '*' && Comments_ == CommentHandling::Skip) {
             Advance(); // /
             Advance(); // *
             while (!AtEnd() && !(CurrentChar() == '*' && PeekChar() == '/')) {
@@ -77,6 +77,9 @@ Token Tokenizer::LexToken() {
 
     const char C = CurrentChar();
 
+    if (C == '/' && PeekChar() == '*') {
+        return LexComment();
+    }
     if (C == '.' && IsIdentStart(PeekChar())) {
         return LexClassName();
     }
@@ -115,6 +118,19 @@ Token Tokenizer::LexToken() {
         Advance();
         return Token{TokenKind::Invalid, std::string(1, C), Loc};
     }
+}
+
+Token Tokenizer::LexComment() {
+    const SourceLocation Loc   = CurrentLocation();
+    const std::size_t    Start = Pos_;
+    Advance();
+    Advance();
+    while (!AtEnd() && !(CurrentChar() == '*' && PeekChar() == '/')) {
+        Advance();
+    }
+    Advance();
+    Advance();
+    return Token{TokenKind::Comment, std::string(Source_.substr(Start, Pos_ - Start)), Loc};
 }
 
 Token Tokenizer::LexIdentifierLike() {

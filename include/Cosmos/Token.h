@@ -37,6 +37,8 @@ enum class TokenKind {
     Comma,
     EndOfFile,
     Invalid,
+    // /* ... */, delimiters included. Only a Tokenizer asked for comments emits these.
+    Comment,
 };
 
 struct Token {

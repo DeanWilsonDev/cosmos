@@ -72,7 +72,8 @@ add_library(cosmos STATIC
     src/Cosmos/Resolver.cpp
     src/Cosmos/Properties.cpp
     src/Cosmos/Checker.cpp
-    src/Cosmos/Explain.cpp)
+    src/Cosmos/Explain.cpp
+    src/Cosmos/Formatter.cpp)
 
 target_include_directories(cosmos PUBLIC include)
 target_compile_features(cosmos PUBLIC cxx_std_26)
@@ -91,8 +92,10 @@ if(COSMOS_BUILD_LSP)
         tools/cosmos-lsp/LspSupport.cpp
         tools/cosmos-lsp/Navigation.cpp
         tools/cosmos-lsp/ServerNavigation.cpp
-        tools/cosmos-lsp/ServerEditing.cpp)
-    target_include_directories(cosmos_lsp_lib PUBLIC tools/cosmos-lsp)
+        tools/cosmos-lsp/ServerEditing.cpp
+        tools/cosmos-lsp/Formatting.cpp
+        tools/shared/FormatSettings.cpp)
+    target_include_directories(cosmos_lsp_lib PUBLIC tools/cosmos-lsp tools/shared)
     target_link_libraries(cosmos_lsp_lib PUBLIC cosmos amanuensis)
 
     add_executable(cosmos_lsp tools/cosmos-lsp/main.cpp)
@@ -107,8 +110,10 @@ if(COSMOS_BUILD_CLI)
     add_library(cosmos_cli_lib STATIC
         tools/cosmos/CosmosCli.cpp
         tools/cosmos/ElementPath.cpp
-        tools/cosmos/AstJson.cpp)
-    target_include_directories(cosmos_cli_lib PUBLIC tools/cosmos)
+        tools/cosmos/AstJson.cpp
+        tools/cosmos/FormatCommand.cpp
+        tools/shared/FormatSettings.cpp)
+    target_include_directories(cosmos_cli_lib PUBLIC tools/cosmos tools/shared)
     target_link_libraries(cosmos_cli_lib PUBLIC cosmos amanuensis)
 
     add_executable(cosmos_cli tools/cosmos/main.cpp)
@@ -132,7 +137,8 @@ if(COSMOS_BUILD_TESTS)
         tests/InheritanceTests.cpp
         tests/PropertiesTests.cpp
         tests/CheckerTests.cpp
-        tests/ExplainTests.cpp)
+        tests/ExplainTests.cpp
+        tests/FormatterTests.cpp)
 
     target_link_libraries(test_cosmos PRIVATE cosmos cimmerian)
     set_target_properties(test_cosmos PROPERTIES
@@ -147,7 +153,8 @@ if(COSMOS_BUILD_TESTS AND COSMOS_BUILD_LSP)
         tools/cosmos-lsp/tests/ServerTests.cpp
         tools/cosmos-lsp/tests/NavigationTests.cpp
         tools/cosmos-lsp/tests/ServerNavigationTests.cpp
-        tools/cosmos-lsp/tests/ServerEditingTests.cpp)
+        tools/cosmos-lsp/tests/ServerEditingTests.cpp
+        tools/cosmos-lsp/tests/FormattingTests.cpp)
 
     target_link_libraries(test_cosmos_lsp PRIVATE cosmos_lsp_lib cimmerian)
     set_target_properties(test_cosmos_lsp PROPERTIES

@@ -46,7 +46,7 @@ that design happens, and where the resulting compiler/resolver will eventually l
   `Cosmos::CheckStylesheet`'s checks), completion, go to definition, hover, references (classes
   in `.chaos` `class` strings too), highlights, an outline, workspace symbols, rename for
   variables and classes, quick fixes from the checker's suggestions, colour swatches with a
-  picker, and folding — see
+  picker, folding, and formatting — see
   `docs/cosmos_lsp_decision.md`.
 - `tools/cosmos/` — the `cosmos` command-line tool (below).
 - `editors/nvim/` — Neovim wiring for `cosmos-lsp` and syntax highlighting.
@@ -80,6 +80,7 @@ fetches Cosmos builds only the library unless it sets `COSMOS_BUILD_LSP`,
 
 ```sh
 cosmos check src/ui                      # every .cosmos below, each with the global.cosmos beside it
+cosmos fmt src/ui                        # format in place; --check lists what would change
 cosmos tokens src/ui/Card.cosmos         # the tokenizer's output
 cosmos ast --locations src/ui/Card.cosmos
 cosmos explain src/ui/Card.cosmos 'Frame[class="card"] > Text[class="title" size=12]:hover'
@@ -99,6 +100,16 @@ cosmos explain src/ui/Card.cosmos 'Frame[class="card"] > Text[class="title" size
   inherited properties marked and `attr()` values taken from the props. The first element
   is the component root unless `--root N` names another (counting from 1), and the global
   sheet is the `global.cosmos` beside the file unless `--global PATH` names another.
+- `fmt` lays a stylesheet out with one declaration per line, blocks indented, a blank line
+  between top-level blocks, at most one of the author's blank lines kept, and every comment
+  kept on its line. A comma-separated value longer than the line width puts each group on
+  its own line. It reads `lineWidth` (default 100) and `indentWidth` (default 4) from the
+  `format` object of the nearest `.nyx.json` above the file, the same settings `nyx fmt` and
+  `chaos fmt` use. A file with syntax errors is left alone, and output that wouldn't parse
+  back to the same tree and comments is never written. `--check` writes nothing, lists the
+  files that would change and exits 1 if there are any. cosmos-lsp formats the same way
+  (`textDocument/formatting`, and `rangeFormatting`, which returns the changed blocks of
+  lines that touch the range).
 - Exit codes: 0 success, 1 problems found, 2 a usage mistake.
 
 ### Editor setup (Neovim)

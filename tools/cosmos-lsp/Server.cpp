@@ -170,6 +170,10 @@ void Server::HandleMessage(const Amanuensis::JsonValue& Message) {
         HandleColorPresentation(Id, Params);
     } else if (Method == "textDocument/foldingRange") {
         HandleFoldingRange(Id, Params);
+    } else if (Method == "textDocument/formatting") {
+        HandleFormatting(Id, Params, false);
+    } else if (Method == "textDocument/rangeFormatting") {
+        HandleFormatting(Id, Params, true);
     } else if (IsRequest) {
         ReplyError(Id, -32601, "method not found: " + Method);
     }
@@ -203,7 +207,8 @@ void Server::HandleInitialize(const Amanuensis::JsonValue& Id, const Amanuensis:
     Amanuensis::Json::Insert(Capabilities, "definitionProvider", Amanuensis::JsonValue(true));
     for (const char* Provider : {"hoverProvider", "referencesProvider", "documentHighlightProvider",
                                  "documentSymbolProvider", "workspaceSymbolProvider", "colorProvider",
-                                 "foldingRangeProvider"}) {
+                                 "foldingRangeProvider", "documentFormattingProvider",
+                                 "documentRangeFormattingProvider"}) {
         Amanuensis::Json::Insert(Capabilities, Provider, Amanuensis::JsonValue(true));
     }
     Amanuensis::JsonValue Rename = Amanuensis::Json::MakeObject();
