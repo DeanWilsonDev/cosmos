@@ -16,6 +16,16 @@
 
 namespace CosmosLsp {
 
+// Replaces Original's text from StartOffset to EndOffset with Text.
+struct LineReplacement {
+    std::size_t StartOffset;
+    std::size_t EndOffset;
+    std::string Text;
+};
+
+// The whole-line replacements that turn Original into Formatted, fewest lines first.
+std::vector<LineReplacement> LineEditsBetween(std::string_view Original, std::string_view Formatted);
+
 // The whole server: one process, one client connection over stdio, request dispatch for
 // the handful of LSP methods this tool implements (docs/cosmos_lsp_decision.md). Unlike
 // iris-lsp, there is no host-language proxy and no VirtualDocument position-translation
@@ -87,6 +97,7 @@ private:
     void HandleCodeAction(const Amanuensis::JsonValue& Id, const Amanuensis::JsonValue& Params);
     void HandleDocumentColor(const Amanuensis::JsonValue& Id, const Amanuensis::JsonValue& Params);
     void HandleColorPresentation(const Amanuensis::JsonValue& Id, const Amanuensis::JsonValue& Params);
+    void HandleFormatting(const Amanuensis::JsonValue& Id, const Amanuensis::JsonValue& Params, bool OnlyRange);
     void HandleFoldingRange(const Amanuensis::JsonValue& Id, const Amanuensis::JsonValue& Params);
 
     // The checker's findings for Doc that belong to it, with the sibling global.cosmos.

@@ -1,6 +1,7 @@
 #include "CosmosCli.h"
 
 #include "AstJson.h"
+#include "CommandSupport.h"
 #include "ElementPath.h"
 #include "Cosmos/Checker.h"
 #include "Cosmos/Explain.h"
@@ -26,6 +27,7 @@ constexpr const char* kUsage =
     "\n"
     "commands:\n"
     "  check <file or directory>...     check stylesheets, each with the global.cosmos beside it\n"
+    "  fmt [--check] <file or dir>...   format stylesheets in place; --check lists files that would change\n"
     "  tokens <file>                    print the file's tokens\n"
     "  ast [--locations] <file>         print the file's syntax tree as JSON\n"
     "  explain [--root N] [--global PATH] <file> <element path>\n"
@@ -33,11 +35,15 @@ constexpr const char* kUsage =
     "                                   for a path like 'Frame[class=\"card\"] > Text[class=\"title\"]:hover'\n"
     "  help                             print this message\n";
 
+} // namespace
+
 int UsageError(const std::string& Message, std::ostream& Err) {
     Err << "error: " << Message << "\n";
     Err << "run 'cosmos help' for usage\n";
     return kExitUsage;
 }
+
+namespace {
 
 std::optional<std::string> ReadFile(const std::filesystem::path& Path) {
     std::ifstream Stream(Path, std::ios::binary);
@@ -135,6 +141,9 @@ bool SkippedFolder(const std::filesystem::path& Folder) {
            Name.starts_with("build_") || Name == "node_modules" || Name == "_deps";
 }
 
+
+} // namespace
+
 std::vector<std::string> CosmosFilesUnder(const std::filesystem::path& Folder) {
     std::vector<std::string> Files;
     std::error_code          Error;
@@ -152,6 +161,8 @@ std::vector<std::string> CosmosFilesUnder(const std::filesystem::path& Folder) {
     std::ranges::sort(Files);
     return Files;
 }
+
+namespace {
 
 bool IsGlobalPath(const std::string& Path) { return std::filesystem::path(Path).filename() == "global.cosmos"; }
 
@@ -264,6 +275,7 @@ std::string_view KindName(Cosmos::TokenKind Kind) {
     case Cosmos::TokenKind::Comma: return "Comma";
     case Cosmos::TokenKind::EndOfFile: return "EndOfFile";
     case Cosmos::TokenKind::Invalid: return "Invalid";
+    case Cosmos::TokenKind::Comment: return "Comment";
     }
     return "Invalid";
 }
@@ -567,6 +579,7 @@ const std::map<std::string, Command>& Commands() {
         {"tokens", TokensCommand},
         {"ast", AstCommand},
         {"explain", ExplainCommand},
+        {"fmt", FormatCommand},
     };
     return Table;
 }
