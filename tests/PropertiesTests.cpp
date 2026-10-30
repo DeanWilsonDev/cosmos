@@ -1,6 +1,7 @@
 #include "cimmerian/test.hpp"
 
 #include "Cosmos/Parser.h"
+#include "Cosmos/Explain.h"
 #include "Cosmos/Properties.h"
 #include "Cosmos/Resolver.h"
 
@@ -103,6 +104,23 @@ DESCRIBE("Properties", {
             }
         }
         ASSERT_EQUAL(Unapplied, std::vector<std::string>{});
+    });
+
+    IT("describes every property it resolves, in a form that resolves to the same style", {
+        std::vector<std::string> Mismatched;
+        for (const PropertyInfo& Property : AllProperties()) {
+            if (Property.Name == "inset") {
+                continue;
+            }
+            const std::string                Name   = std::string(Property.Name);
+            const Resolved                   Result = ResolveOne(Name, SampleValue(Property));
+            const std::vector<StyleProperty> Described = DescribeStyle(Result.Style);
+            const auto Found = std::ranges::find(Described, Name, &StyleProperty::Name);
+            if (Found == Described.end() || !(ResolveOne(Name, Found->Value).Style == Result.Style)) {
+                Mismatched.push_back(Name + ": " + SampleValue(Property));
+            }
+        }
+        ASSERT_EQUAL(Mismatched, std::vector<std::string>{});
     });
 
     IT("resolves every keyword the table lists for a property", {

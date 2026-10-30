@@ -26,6 +26,7 @@ endif()
 # ---------------------------------------------------------------------------
 option(COSMOS_BUILD_TESTS "Build test_cosmos (and test_cosmos_lsp with COSMOS_BUILD_LSP)" ${PROJECT_IS_TOP_LEVEL})
 option(COSMOS_BUILD_LSP "Build cosmos_lsp" ${PROJECT_IS_TOP_LEVEL})
+option(COSMOS_BUILD_CLI "Build the cosmos command-line tool" ${PROJECT_IS_TOP_LEVEL})
 
 # ---------------------------------------------------------------------------
 # Cimmerian — the ecosystem's own BDD-style test framework, vendored as a git
@@ -52,7 +53,7 @@ add_subdirectory(libs/cimmerian)
 # ---------------------------------------------------------------------------
 # Amanuensis — the ecosystem's own JSON library, vendored as a git submodule
 # the same way `iris` does (iris/libs/amanuensis). Used only by cosmos_lsp's
-# JSON-RPC transport (tools/cosmos-lsp/JsonRpc.h) — the cosmos core library
+# JSON-RPC transport (tools/cosmos-lsp/JsonRpc.h) and `cosmos ast` — the cosmos core library
 # itself has no JSON dependency.
 # ---------------------------------------------------------------------------
 add_subdirectory(libs/amanuensis)
@@ -70,7 +71,8 @@ add_library(cosmos STATIC
     src/Cosmos/Parser.cpp
     src/Cosmos/Resolver.cpp
     src/Cosmos/Properties.cpp
-    src/Cosmos/Checker.cpp)
+    src/Cosmos/Checker.cpp
+    src/Cosmos/Explain.cpp)
 
 target_include_directories(cosmos PUBLIC include)
 target_compile_features(cosmos PUBLIC cxx_std_26)
@@ -98,6 +100,25 @@ if(COSMOS_BUILD_LSP)
 endif()
 
 # ---------------------------------------------------------------------------
+# cosmos — the command-line tool: check, tokens, ast and explain. A lib and a one-file
+# executable, like cosmos-lsp, so test_cosmos_cli runs the commands in process.
+# ---------------------------------------------------------------------------
+if(COSMOS_BUILD_CLI)
+    add_library(cosmos_cli_lib STATIC
+        tools/cosmos/CosmosCli.cpp
+        tools/cosmos/ElementPath.cpp
+        tools/cosmos/AstJson.cpp)
+    target_include_directories(cosmos_cli_lib PUBLIC tools/cosmos)
+    target_link_libraries(cosmos_cli_lib PUBLIC cosmos amanuensis)
+
+    add_executable(cosmos_cli tools/cosmos/main.cpp)
+    target_link_libraries(cosmos_cli PRIVATE cosmos_cli_lib)
+    set_target_properties(cosmos_cli PROPERTIES
+        OUTPUT_NAME cosmos
+        RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools/cosmos")
+endif()
+
+# ---------------------------------------------------------------------------
 # Tests — one Cimmerian-based executable, matching `iris`'s
 # DESCRIBE/IT/ASSERT_* + auto-registration convention (see that repo's
 # CLAUDE.md "Build and test" section).
@@ -110,7 +131,8 @@ if(COSMOS_BUILD_TESTS)
         tests/ResolverTests.cpp
         tests/InheritanceTests.cpp
         tests/PropertiesTests.cpp
-        tests/CheckerTests.cpp)
+        tests/CheckerTests.cpp
+        tests/ExplainTests.cpp)
 
     target_link_libraries(test_cosmos PRIVATE cosmos cimmerian)
     set_target_properties(test_cosmos PROPERTIES
@@ -130,4 +152,15 @@ if(COSMOS_BUILD_TESTS AND COSMOS_BUILD_LSP)
     target_link_libraries(test_cosmos_lsp PRIVATE cosmos_lsp_lib cimmerian)
     set_target_properties(test_cosmos_lsp PROPERTIES
         RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools/cosmos-lsp/tests")
+endif()
+
+if(COSMOS_BUILD_TESTS AND COSMOS_BUILD_CLI)
+    add_executable(test_cosmos_cli
+        tools/cosmos/tests/TestMain.cpp
+        tools/cosmos/tests/ElementPathTests.cpp
+        tools/cosmos/tests/CliTests.cpp)
+
+    target_link_libraries(test_cosmos_cli PRIVATE cosmos_cli_lib cimmerian)
+    set_target_properties(test_cosmos_cli PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools/cosmos/tests")
 endif()

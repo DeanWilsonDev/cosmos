@@ -177,11 +177,12 @@ std::optional<StackLevel> ParseStackLevel(const ValuePart& Part) {
     return StackLevel{.Auto = false, .Level = Level};
 }
 
-// A declaration as written, for a diagnostic: "`position: middle`".
-std::string Written(const std::string& Prop, const std::vector<ValuePart>& Values) {
-    std::string Text = "`" + Prop + ":";
+std::string WrittenValueList(const std::vector<ValuePart>& Values) {
+    std::string Text;
     for (const ValuePart& V : Values) {
-        Text += V.FollowsComma ? ", " : " ";
+        if (!Text.empty() || V.FollowsComma) {
+            Text += V.FollowsComma ? ", " : " ";
+        }
         if (V.Literal) {
             Text += *V.Literal;
             if (V.CallArgument) {
@@ -203,9 +204,16 @@ std::string Written(const std::string& Prop, const std::vector<ValuePart>& Value
                 Text += Channel.AttrRef ? "attr(" + *Channel.AttrRef + ")" : Channel.Number.value_or("");
             }
             Text += ")";
+        } else if (V.VariableRef) {
+            Text += "var(--" + *V.VariableRef + ")";
         }
     }
-    return Text + "`";
+    return Text;
+}
+
+// A declaration as written, for a diagnostic: "`position: middle`".
+std::string Written(const std::string& Prop, const std::vector<ValuePart>& Values) {
+    return "`" + Prop + ": " + WrittenValueList(Values) + "`";
 }
 
 // A literal rgb()/rgba() channel: a whole number from 0 to 255, alpha included.
@@ -1193,6 +1201,51 @@ std::string_view PrimitiveTagForSelector(std::string_view CosmosSelectorName) {
 std::optional<Color> ColorOfValue(const ValuePart& Part) { return ParseColor(Part); }
 
 namespace Detail {
+
+namespace {
+
+void CollectMatchingChains(const Rule& Node, const std::vector<const IStyleTarget*>& Chain, std::size_t BoundExclusive,
+                           std::vector<const Rule*>& Lineage, std::vector<std::vector<const Rule*>>& Out) {
+    Lineage.push_back(&Node);
+    for (std::size_t I = 0; I < BoundExclusive && I < Chain.size(); ++I) {
+        if (!SelectorHeadMatches(Node, *Chain[I])) {
+            continue;
+        }
+        if (I == 0) {
+            Out.push_back(Lineage);
+        }
+        for (const auto& Child : Node.NestedRules) {
+            CollectMatchingChains(*Child, Chain, I, Lineage, Out);
+        }
+    }
+    Lineage.pop_back();
+}
+
+} // namespace
+
+std::vector<std::vector<const Rule*>> MatchingRuleChains(const Stylesheet& Sheet, const IStyleTarget& Target,
+                                                         bool Unbounded) {
+    const std::vector<const IStyleTarget*> Chain = BuildAncestorChain(Target, Unbounded);
+    std::vector<std::vector<const Rule*>>  Matches;
+    std::vector<const Rule*>               Lineage;
+    for (const std::size_t RuleIndexInSheet : CandidateRules(*MatchIndexFor(Sheet), Chain)) {
+        CollectMatchingChains(*Sheet.Rules[RuleIndexInSheet], Chain, Chain.size(), Lineage, Matches);
+    }
+    std::stable_sort(Matches.begin(), Matches.end(), [](const auto& A, const auto& B) {
+        if (A.back()->Depth != B.back()->Depth) {
+            return A.back()->Depth < B.back()->Depth;
+        }
+        return A.back()->SourceIndex < B.back()->SourceIndex;
+    });
+    return Matches;
+}
+
+std::string WrittenValues(const std::vector<ValuePart>& Values) { return WrittenValueList(Values); }
+
+ResolvedStyle ResolveOwnStyle(const IStyleTarget& Target, const StylesheetSet& Sheets,
+                              std::vector<ResolveDiagnostic>& Diagnostics) {
+    return ResolveCascadedLayers(Target, Sheets, Diagnostics);
+}
 
 VariableLookup LookUpVariable(const ValuePart& Part, const VariableScope& Scope) {
     VariableLookup           Lookup;

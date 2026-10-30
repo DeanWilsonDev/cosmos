@@ -48,6 +48,7 @@ that design happens, and where the resulting compiler/resolver will eventually l
   variables and classes, quick fixes from the checker's suggestions, colour swatches with a
   picker, and folding — see
   `docs/cosmos_lsp_decision.md`.
+- `tools/cosmos/` — the `cosmos` command-line tool (below).
 - `editors/nvim/` — Neovim wiring for `cosmos-lsp` and syntax highlighting.
 
 ## Build
@@ -64,14 +65,41 @@ cmake -S . -B build
 cmake --build build -j"$(nproc)"
 ```
 
-This builds the `cosmos` static library, `cosmos_lsp` (the LSP server), and both test
-executables. A project that fetches Cosmos builds only the library unless it sets
-`COSMOS_BUILD_LSP` or `COSMOS_BUILD_TESTS` on. Run the test suites with:
+This builds the `cosmos` static library, `cosmos_lsp` (the LSP server), the `cosmos`
+command-line tool (`build/tools/cosmos/cosmos`) and the test executables. A project that
+fetches Cosmos builds only the library unless it sets `COSMOS_BUILD_LSP`,
+`COSMOS_BUILD_CLI` or `COSMOS_BUILD_TESTS` on. Run the test suites with:
 
 ```sh
 ./build/tests/test_cosmos
 ./build/tools/cosmos-lsp/tests/test_cosmos_lsp
+./build/tools/cosmos/tests/test_cosmos_cli
 ```
+
+### The `cosmos` command
+
+```sh
+cosmos check src/ui                      # every .cosmos below, each with the global.cosmos beside it
+cosmos tokens src/ui/Card.cosmos         # the tokenizer's output
+cosmos ast --locations src/ui/Card.cosmos
+cosmos explain src/ui/Card.cosmos 'Frame[class="card"] > Text[class="title" size=12]:hover'
+```
+
+- `check` prints each problem as `file:line:column: error|warning: message` with the line
+  underlined, then a count, and exits 1 when there's an error (warnings alone exit 0), so
+  it can run in CI. It reports what cosmos-lsp reports. A file named on the command line
+  that isn't `.cosmos` is skipped with a note, so `cosmos check src/ui/*` checks the same
+  files as `cosmos check src/ui`.
+- `explain` describes an element, not a selector: tags as Chaos writes them, each with
+  its `class` and other props in `[...]`, outermost first, each the previous one's child,
+  and an optional `:hover`, `:active` or `:disabled` on the last. It prints every rule that
+  matches the last element in the order the resolver applies them (global.cosmos's, then
+  the file's, by nesting depth and source order), each declaration's value after `var()`,
+  which declarations are overridden or ignored and why, then the resolved style, with
+  inherited properties marked and `attr()` values taken from the props. The first element
+  is the component root unless `--root N` names another (counting from 1), and the global
+  sheet is the `global.cosmos` beside the file unless `--global PATH` names another.
+- Exit codes: 0 success, 1 problems found, 2 a usage mistake.
 
 ### Editor setup (Neovim)
 
