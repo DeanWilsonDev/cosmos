@@ -1577,4 +1577,16 @@ series { color: #6193FF; }
         REQUIRE_EQUAL(Diagnostics.size(), std::size_t{1});
         ASSERT_TRUE(Diagnostics[0].Message.find("`pointer-events: all`") != std::string::npos);
     });
+
+    IT("reports a variable cycle once per use instead of recursing forever", {
+        const auto Sheet = ParseOrFail(".card { --a: var(--b); --b: var(--a); color: var(--a); }", "Card.cosmos");
+        REQUIRE_TRUE(Sheet.has_value());
+        FakeElement Card("card", "Text", nullptr, true);
+        std::vector<ResolveDiagnostic> Diagnostics;
+        const ResolvedStyle Style = Resolver{}.Resolve(Card, StylesheetSet{nullptr, &*Sheet}, false, Diagnostics);
+        REQUIRE_EQUAL(Diagnostics.size(), static_cast<std::size_t>(1));
+        ASSERT_TRUE(Diagnostics[0].Message.find("refers to itself") != std::string::npos);
+        ASSERT_FALSE(Style.TextColor.has_value());
+    });
 });
+

@@ -69,14 +69,15 @@ private:
             ReportUnknownProperty(Decl);
             return;
         }
-        bool AnyUndefined = false;
+        bool AnyMissing = false;
         for (const ValuePart& Part : Decl.Values) {
-            if (Part.VariableRef && !Defined(Part)) {
-                AnyUndefined = true;
-                ReportUndefinedVariable(Part);
+            const Detail::VariableLookup Lookup = Detail::LookUpVariable(Part, Scope_);
+            if (!Lookup.Missing.empty()) {
+                AnyMissing = true;
+                ReportUndefinedVariable(Part, Lookup);
             }
         }
-        if (AnyUndefined) {
+        if (AnyMissing) {
             return;
         }
         std::vector<ResolveDiagnostic> Found;
@@ -89,21 +90,13 @@ private:
     }
 
     void CheckVariableValue(const ValuePart& Value) {
-        if (Value.VariableRef && !Defined(Value)) {
-            ReportUndefinedVariable(Value);
+        const Detail::VariableLookup Lookup = Detail::LookUpVariable(Value, Scope_);
+        if (!Lookup.Missing.empty()) {
+            ReportUndefinedVariable(Value, Lookup);
+        } else if (!Lookup.Cycle.empty()) {
+            Diagnostics_.push_back(CheckDiagnostic{CheckSeverity::Error, Detail::VariableCycleMessage(Lookup.Cycle),
+                                                   Value.Location, Value.End, {}});
         }
-    }
-
-    bool Defined(const ValuePart& Part) const {
-        const ValuePart* Current = &Part;
-        for (int Hops = 0; Current->VariableRef && Hops < 2; ++Hops) {
-            const auto It = Scope_.Values.find(*Current->VariableRef);
-            if (It == Scope_.Values.end()) {
-                return false;
-            }
-            Current = &It->second;
-        }
-        return true;
     }
 
     void ReportUnknownProperty(const Declaration& Decl) {
@@ -118,25 +111,21 @@ private:
         Diagnostics_.push_back(std::move(Diagnostic));
     }
 
-    void ReportUndefinedVariable(const ValuePart& Part) {
+    // Reported at Part, the value written in this file, even when the missing name is
+    // reached through a variable declared in another file.
+    void ReportUndefinedVariable(const ValuePart& Part, const Detail::VariableLookup& Lookup) {
         if (!CheckVariables_) {
             return;
         }
-        const ValuePart* Undefined = &Part;
-        while (Undefined->VariableRef) {
-            const auto It = Scope_.Values.find(*Undefined->VariableRef);
-            if (It == Scope_.Values.end()) {
-                break;
-            }
-            Undefined = &It->second;
+        CheckDiagnostic Diagnostic{CheckSeverity::Error, Detail::UndefinedVariableMessage(Lookup.Missing),
+                                   Part.Location, Part.End, {}};
+        if (Lookup.MissingAt != &Part) {
+            Diagnostic.Message += " It's reached through `var(--" + *Part.VariableRef + ")`.";
+            Diagnostics_.push_back(std::move(Diagnostic));
+            return;
         }
-        const std::string& Name = *Undefined->VariableRef;
-        CheckDiagnostic    Diagnostic{CheckSeverity::Error,
-                                   "Undefined variable `var(--" + Name + ")` -- no `--" + Name +
-                                       "` is declared in global.cosmos's `:root` or in this file.",
-                                   Undefined->Location, Undefined->End, {}};
         const std::vector<std::string_view> Candidates(VariableNames_.begin(), VariableNames_.end());
-        if (const std::string_view Fix = ClosestMatch(Name, Candidates); !Fix.empty() && Undefined == &Part) {
+        if (const std::string_view Fix = ClosestMatch(Lookup.Missing, Candidates); !Fix.empty()) {
             Diagnostic.Message += " Did you mean `--" + std::string(Fix) + "`?";
             Diagnostic.Suggestion = "var(--" + std::string(Fix) + ")";
         }

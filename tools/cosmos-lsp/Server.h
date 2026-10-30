@@ -6,6 +6,8 @@
 #include <amanuensis.hpp>
 
 #include <cstdio>
+#include <filesystem>
+#include <optional>
 #include <string>
 #include <unordered_map>
 
@@ -62,7 +64,11 @@ private:
     bool       WatchGlobalFiles_{false};
 
     std::unordered_map<std::string, OpenDocument>        Documents_;
-    std::unordered_map<std::string, Cosmos::ParseResult> DiskGlobals_;
+    struct DiskSheet {
+        Cosmos::ParseResult                            Parsed;
+        std::optional<std::filesystem::file_time_type> Stamp;
+    };
+    std::unordered_map<std::string, DiskSheet> DiskGlobals_;
 };
 
 } // namespace CosmosLsp

@@ -320,5 +320,17 @@ DESCRIBE("Server", {
         const auto& Items = Amanuensis::Json::Get(Amanuensis::Json::Get(Responses.back(), "result"), "items");
         ASSERT_EQUAL(Amanuensis::Json::Size(Items), static_cast<std::size_t>(4));
     });
+
+    IT("keeps a finding about global.cosmos's own text out of another file's diagnostics", {
+        ScratchFolder Folder;
+        Folder.Write("global.cosmos", ":root {\n    --a: var(--missing);\n    --b: var(--c);\n    --c: var(--b);\n}\n");
+        const std::string Uri = Folder.Uri("Card.cosmos");
+        const auto Published = PublishedFor(
+            RunServer({MakeDidOpen(Uri, ".card {\n    color: var(--a);\n    border-color: var(--b);\n}\n")}), Uri);
+        REQUIRE_EQUAL(Amanuensis::Json::Size(Published.back()), static_cast<std::size_t>(2));
+        ASSERT_EQUAL(IntegerAt(Amanuensis::Json::At(Published.back(), 0), {"range", "start", "line"}), 1LL);
+        ASSERT_EQUAL(IntegerAt(Amanuensis::Json::At(Published.back(), 1), {"range", "start", "line"}), 2LL);
+        ASSERT_TRUE(MessageOf(Amanuensis::Json::At(Published.back(), 1)).find("refers to itself") != std::string::npos);
+    });
 });
 

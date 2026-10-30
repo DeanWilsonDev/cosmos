@@ -73,30 +73,19 @@ VariableScope BuildVariableScope(const Stylesheet* Global, const Stylesheet* Com
     return Scope;
 }
 
-// Resolves a var(--name) reference through the scope. Returns nullptr (and
-// records a diagnostic) if the referenced variable was never declared --
-// §1.4/§6: no fallback form exists, an undefined reference is always an
-// error.
 const ValuePart* ResolveVariableRef(const ValuePart& Part, const VariableScope& Scope,
-                                     std::vector<ResolveDiagnostic>& Diagnostics) {
-    if (!Part.VariableRef) {
-        return &Part;
-    }
-    auto It = Scope.Values.find(*Part.VariableRef);
-    if (It == Scope.Values.end()) {
-        Diagnostics.push_back(ResolveDiagnostic{"Undefined variable `var(--" + *Part.VariableRef + ")` -- no `--" +
-                                                      *Part.VariableRef +
-                                                      "` is declared globally or in this component's scope.",
-                                                  Part.Location, Part.End});
+                                    std::vector<ResolveDiagnostic>& Diagnostics) {
+    const Detail::VariableLookup Lookup = Detail::LookUpVariable(Part, Scope);
+    if (!Lookup.Missing.empty()) {
+        Diagnostics.push_back(ResolveDiagnostic{Detail::UndefinedVariableMessage(Lookup.Missing),
+                                                Lookup.MissingAt->Location, Lookup.MissingAt->End});
         return nullptr;
     }
-    // A variable's own value can't itself be another var() reference in any
-    // example the spec gives; if it somehow is, resolve one level deep and
-    // stop there rather than looping.
-    if (It->second.VariableRef) {
-        return ResolveVariableRef(It->second, Scope, Diagnostics);
+    if (!Lookup.Cycle.empty()) {
+        Diagnostics.push_back(ResolveDiagnostic{Detail::VariableCycleMessage(Lookup.Cycle), Part.Location, Part.End});
+        return nullptr;
     }
-    return &It->second;
+    return Lookup.Value;
 }
 
 std::string StripUnitSuffix(std::string_view Text, float& OutValue) {
@@ -1202,6 +1191,43 @@ std::string_view PrimitiveTagForSelector(std::string_view CosmosSelectorName) {
 }
 
 namespace Detail {
+
+VariableLookup LookUpVariable(const ValuePart& Part, const VariableScope& Scope) {
+    VariableLookup           Lookup;
+    std::vector<std::string> Seen;
+    const ValuePart*         Current = &Part;
+    while (Current->VariableRef) {
+        const std::string& Name = *Current->VariableRef;
+        if (std::ranges::find(Seen, Name) != Seen.end()) {
+            Lookup.Cycle = std::vector<std::string>(std::ranges::find(Seen, Name), Seen.end());
+            Lookup.Cycle.push_back(Name);
+            return Lookup;
+        }
+        Seen.push_back(Name);
+        const auto It = Scope.Values.find(Name);
+        if (It == Scope.Values.end()) {
+            Lookup.Missing   = Name;
+            Lookup.MissingAt = Current;
+            return Lookup;
+        }
+        Current = &It->second;
+    }
+    Lookup.Value = Current;
+    return Lookup;
+}
+
+std::string UndefinedVariableMessage(const std::string& Name) {
+    return "Undefined variable `var(--" + Name + ")` -- no `--" + Name +
+           "` is declared in global.cosmos's `:root` or in this component's file.";
+}
+
+std::string VariableCycleMessage(const std::vector<std::string>& Cycle) {
+    std::string Chain;
+    for (const std::string& Name : Cycle) {
+        Chain += (Chain.empty() ? "`--" : " -> `--") + Name + "`";
+    }
+    return "Variable `--" + Cycle.front() + "` refers to itself: " + Chain + ".";
+}
 
 VariableScope BuildScope(const StylesheetSet& Sheets) { return BuildVariableScope(Sheets.Global, Sheets.Component); }
 

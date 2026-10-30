@@ -163,4 +163,39 @@ DESCRIBE("Checker", {
         ASSERT_EQUAL(Result.Diagnostics[1].Location.Line, static_cast<std::uint32_t>(5));
         ASSERT_EQUAL(Result.Diagnostics[2].Location.Line, static_cast<std::uint32_t>(6));
     });
+
+    IT("reports a variable that refers to itself instead of looping", {
+        const Checked Result = CheckComponent(".card {\n    --a: var(--a);\n    color: var(--a);\n}\n");
+        REQUIRE_EQUAL(Result.Diagnostics.size(), static_cast<std::size_t>(2));
+        ASSERT_EQUAL(Result.At(2)->Message, std::string("Variable `--a` refers to itself: `--a` -> `--a`."));
+        ASSERT_TRUE(Result.At(3)->Message.find("refers to itself") != std::string::npos);
+    });
+
+    IT("reports a cycle through global.cosmos at the use in this file", {
+        const std::string Global = ":root {\n    --a: var(--b);\n    --b: var(--a);\n}\n";
+        const Checked     Result = CheckComponent(".card {\n    color: var(--a);\n}\n", &Global);
+        REQUIRE_EQUAL(Result.Diagnostics.size(), static_cast<std::size_t>(1));
+        ASSERT_EQUAL(Result.Diagnostics[0].Location.FilePath, std::string("Card.cosmos"));
+        ASSERT_EQUAL(Result.Diagnostics[0].Message,
+                     std::string("Variable `--a` refers to itself: `--a` -> `--b` -> `--a`."));
+    });
+
+    IT("follows a chain of any length, as the resolver does", {
+        const std::string Source = ".card {\n    --x: var(--y);\n    --y: var(--z);\n    --z: #ffffff;\n    color: var(--x);\n}\n";
+        ASSERT_TRUE(CheckComponent(Source, nullptr).Diagnostics.empty());
+        ASSERT_TRUE(CheckComponent(Source).Diagnostics.empty());
+    });
+
+    IT("reports a name missing behind a global variable at the use in this file", {
+        const std::string Global = ":root {\n    --a: var(--missing);\n}\n";
+        const Checked     Result = CheckComponent(".card {\n    color: var(--a);\n}\n", &Global);
+        REQUIRE_EQUAL(Result.Diagnostics.size(), static_cast<std::size_t>(1));
+        const CheckDiagnostic& D = Result.Diagnostics[0];
+        ASSERT_EQUAL(D.Location.FilePath, std::string("Card.cosmos"));
+        ASSERT_EQUAL(D.Location.Line, static_cast<std::uint32_t>(2));
+        ASSERT_TRUE(D.Message.find("`var(--missing)`") != std::string::npos);
+        ASSERT_TRUE(D.Message.find("reached through `var(--a)`") != std::string::npos);
+        ASSERT_TRUE(D.Suggestion.empty());
+    });
 });
+

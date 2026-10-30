@@ -315,16 +315,20 @@ const Cosmos::Stylesheet* Server::GlobalSheetFor(const std::string& Path) {
     if (const auto Open = Documents_.find(PathToUri(GlobalPath)); Open != Documents_.end()) {
         return Open->second.Parsed.Sheet ? &*Open->second.Parsed.Sheet : nullptr;
     }
+    std::error_code Error;
+    const auto      Written = std::filesystem::last_write_time(GlobalPath, Error);
+    const std::optional<std::filesystem::file_time_type> Stamp =
+        Error ? std::nullopt : std::optional<std::filesystem::file_time_type>(Written);
     auto Cached = DiskGlobals_.find(GlobalPath);
-    if (Cached == DiskGlobals_.end()) {
-        Cosmos::ParseResult Parsed;
+    if (Cached == DiskGlobals_.end() || Cached->second.Stamp != Stamp) {
+        DiskSheet Sheet{{}, Stamp};
         if (const auto Text = ReadFile(GlobalPath)) {
             Cosmos::Parser P(*Text, GlobalPath);
-            Parsed = P.Parse();
+            Sheet.Parsed = P.Parse();
         }
-        Cached = DiskGlobals_.emplace(GlobalPath, std::move(Parsed)).first;
+        Cached = DiskGlobals_.insert_or_assign(GlobalPath, std::move(Sheet)).first;
     }
-    return Cached->second.Sheet ? &*Cached->second.Sheet : nullptr;
+    return Cached->second.Parsed.Sheet ? &*Cached->second.Parsed.Sheet : nullptr;
 }
 
 void Server::GlobalChanged(const std::string& GlobalPath) {
@@ -370,6 +374,9 @@ void Server::PublishDiagnostics(const std::string& Uri, const OpenDocument& Doc)
             Sheets.Component = &*Doc.Parsed.Sheet;
         }
         for (const Cosmos::CheckDiagnostic& Found : Cosmos::CheckStylesheet(Sheets)) {
+            if (!Found.Location.FilePath.empty() && Found.Location.FilePath != Path) {
+                continue;
+            }
             const long long Severity = Found.Severity == Cosmos::CheckSeverity::Error ? 1 : 2;
             Amanuensis::Json::PushBack(
                 Diagnostics, MakeDiagnostic(DiagnosticRange(Tokens, Found.Location, Found.End), Severity, Found.Message));
