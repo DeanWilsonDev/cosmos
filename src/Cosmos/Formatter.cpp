@@ -1,6 +1,6 @@
-#include "Cosmos/Formatter.h"
+#include "cosmos/Formatter.h"
 
-#include "Cosmos/Tokenizer.h"
+#include "cosmos/Tokenizer.h"
 
 #include <algorithm>
 

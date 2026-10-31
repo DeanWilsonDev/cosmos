@@ -1,7 +1,7 @@
 #pragma once
 
-#include "Cosmos/Ast.h"
-#include "Cosmos/Token.h"
+#include "cosmos/Ast.h"
+#include "cosmos/Token.h"
 
 #include <cstdint>
 #include <optional>

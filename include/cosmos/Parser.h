@@ -1,9 +1,9 @@
 #pragma once
 
-#include "Cosmos/Ast.h"
-#include "Cosmos/SourceLocation.h"
-#include "Cosmos/Token.h"
-#include "Cosmos/Tokenizer.h"
+#include "cosmos/Ast.h"
+#include "cosmos/SourceLocation.h"
+#include "cosmos/Token.h"
+#include "cosmos/Tokenizer.h"
 
 #include <optional>
 #include <string>

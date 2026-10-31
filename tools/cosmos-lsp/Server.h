@@ -1,8 +1,8 @@
 #pragma once
 
-#include "Cosmos/Ast.h"
-#include "Cosmos/Checker.h"
-#include "Cosmos/Parser.h"
+#include "cosmos/Ast.h"
+#include "cosmos/Checker.h"
+#include "cosmos/Parser.h"
 #include "Navigation.h"
 
 #include <amanuensis.hpp>

@@ -3,10 +3,10 @@
 #include "AstJson.h"
 #include "CommandSupport.h"
 #include "ElementPath.h"
-#include "Cosmos/Checker.h"
-#include "Cosmos/Explain.h"
-#include "Cosmos/Parser.h"
-#include "Cosmos/Tokenizer.h"
+#include "cosmos/Checker.h"
+#include "cosmos/Explain.h"
+#include "cosmos/Parser.h"
+#include "cosmos/Tokenizer.h"
 
 #include <algorithm>
 #include <charconv>

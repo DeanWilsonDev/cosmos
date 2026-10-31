@@ -1,9 +1,9 @@
 #include "cimmerian/test.hpp"
 
-#include "Cosmos/Parser.h"
-#include "Cosmos/Explain.h"
-#include "Cosmos/Properties.h"
-#include "Cosmos/Resolver.h"
+#include "cosmos/Parser.h"
+#include "cosmos/Explain.h"
+#include "cosmos/Properties.h"
+#include "cosmos/Resolver.h"
 
 #include <string>
 #include <vector>

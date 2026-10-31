@@ -1,7 +1,7 @@
 #include "cimmerian/test.hpp"
 
-#include "Cosmos/Explain.h"
-#include "Cosmos/Parser.h"
+#include "cosmos/Explain.h"
+#include "cosmos/Parser.h"
 
 #include <algorithm>
 #include <string>

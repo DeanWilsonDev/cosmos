@@ -1,7 +1,7 @@
 #include "cimmerian/test.hpp"
 
-#include "Cosmos/Parser.h"
-#include "Cosmos/Resolver.h"
+#include "cosmos/Parser.h"
+#include "cosmos/Resolver.h"
 
 using namespace Cosmos;
 

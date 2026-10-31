@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Cosmos/Formatter.h"
+#include "cosmos/Formatter.h"
 
 #include <filesystem>
 #include <string>

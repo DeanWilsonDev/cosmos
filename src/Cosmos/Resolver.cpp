@@ -1,6 +1,6 @@
-#include "Cosmos/Resolver.h"
+#include "cosmos/Resolver.h"
 
-#include "Cosmos/Properties.h"
+#include "cosmos/Properties.h"
 #include "ResolverDetail.h"
 
 #include <algorithm>

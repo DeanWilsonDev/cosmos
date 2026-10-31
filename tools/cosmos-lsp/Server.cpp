@@ -3,8 +3,8 @@
 #include "CompletionContext.h"
 #include "JsonRpc.h"
 #include "LspSupport.h"
-#include "Cosmos/Checker.h"
-#include "Cosmos/Parser.h"
+#include "cosmos/Checker.h"
+#include "cosmos/Parser.h"
 
 #include <filesystem>
 #include <fstream>

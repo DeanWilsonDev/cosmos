@@ -1,6 +1,6 @@
 #include "cimmerian/test.hpp"
 
-#include "Cosmos/Parser.h"
+#include "cosmos/Parser.h"
 
 using namespace Cosmos;
 

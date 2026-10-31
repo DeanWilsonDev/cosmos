@@ -1,7 +1,7 @@
 #pragma once
 
-#include "Cosmos/Resolver.h"
-#include "Cosmos/SourceLocation.h"
+#include "cosmos/Resolver.h"
+#include "cosmos/SourceLocation.h"
 
 #include <string>
 #include <vector>

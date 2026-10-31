@@ -1,7 +1,7 @@
 #include "cimmerian/test.hpp"
 
-#include "Cosmos/Checker.h"
-#include "Cosmos/Parser.h"
+#include "cosmos/Checker.h"
+#include "cosmos/Parser.h"
 
 #include <string>
 #include <vector>

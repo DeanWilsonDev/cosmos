@@ -3,7 +3,7 @@
 #include "CompletionContext.h"
 #include "LspSupport.h"
 #include "Navigation.h"
-#include "Cosmos/Properties.h"
+#include "cosmos/Properties.h"
 
 #include <algorithm>
 #include <cctype>

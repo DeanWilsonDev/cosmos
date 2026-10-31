@@ -1,6 +1,6 @@
 #include "cimmerian/test.hpp"
 
-#include "Cosmos/Formatter.h"
+#include "cosmos/Formatter.h"
 
 #include <string>
 

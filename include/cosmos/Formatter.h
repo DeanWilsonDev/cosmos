@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Cosmos/Parser.h"
+#include "cosmos/Parser.h"
 
 #include <string>
 #include <string_view>
