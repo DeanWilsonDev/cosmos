@@ -1,7 +1,7 @@
 #pragma once
 
-#include "Cosmos/Ast.h"
-#include "Cosmos/ResolvedStyle.h"
+#include "cosmos/Ast.h"
+#include "cosmos/ResolvedStyle.h"
 
 #include <string>
 #include <string_view>

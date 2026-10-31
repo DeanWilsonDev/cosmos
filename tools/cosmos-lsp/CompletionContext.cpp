@@ -1,7 +1,7 @@
 #include "CompletionContext.h"
 
-#include "Cosmos/Properties.h"
-#include "Cosmos/Tokenizer.h"
+#include "cosmos/Properties.h"
+#include "cosmos/Tokenizer.h"
 
 namespace CosmosLsp {
 

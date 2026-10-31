@@ -1,8 +1,8 @@
 #pragma once
 
-#include "Cosmos/Ast.h"
-#include "Cosmos/ResolvedStyle.h"
-#include "Cosmos/Resolver.h"
+#include "cosmos/Ast.h"
+#include "cosmos/ResolvedStyle.h"
+#include "cosmos/Resolver.h"
 
 #include <string>
 #include <vector>

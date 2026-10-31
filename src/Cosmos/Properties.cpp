@@ -1,4 +1,4 @@
-#include "Cosmos/Properties.h"
+#include "cosmos/Properties.h"
 
 #include <algorithm>
 #include <array>

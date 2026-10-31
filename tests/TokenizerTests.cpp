@@ -1,6 +1,6 @@
 #include "cimmerian/test.hpp"
 
-#include "Cosmos/Tokenizer.h"
+#include "cosmos/Tokenizer.h"
 
 using namespace Cosmos;
 

@@ -39,7 +39,7 @@ that design happens, and where the resulting compiler/resolver will eventually l
 - `docs/` — design docs, decision records, and open questions, following the same pattern
   `iris`'s own `docs/` directory used during its Stage 0 scoping (a handoff doc first, decision
   docs as design questions get resolved).
-- `include/Cosmos/`, `src/Cosmos/` — the core library: `Tokenizer`/`Parser` (parses one
+- `include/cosmos/`, `src/Cosmos/` — the core library: `Tokenizer`/`Parser` (parses one
   `.cosmos` file into the `Ast.h` tree) and `Resolver` (cascade + variable resolution down to
   `ResolvedStyle`, backend-agnostic).
 - `tools/cosmos-lsp/` — a stdio LSP server for `.cosmos` files: diagnostics (parse errors and

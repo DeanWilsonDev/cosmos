@@ -3,7 +3,7 @@
 #include "FormatSettings.h"
 #include "LspSupport.h"
 
-#include "Cosmos/Formatter.h"
+#include "cosmos/Formatter.h"
 
 #include <algorithm>
 

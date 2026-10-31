@@ -1,8 +1,8 @@
 #include "cimmerian/test.hpp"
 
 #include "CompletionContext.h"
-#include "Cosmos/Properties.h"
-#include "Cosmos/Parser.h"
+#include "cosmos/Properties.h"
+#include "cosmos/Parser.h"
 
 #include <algorithm>
 

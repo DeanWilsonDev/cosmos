@@ -2,7 +2,7 @@
 #include "CosmosCli.h"
 #include "FormatSettings.h"
 
-#include "Cosmos/Formatter.h"
+#include "cosmos/Formatter.h"
 
 #include <algorithm>
 #include <filesystem>

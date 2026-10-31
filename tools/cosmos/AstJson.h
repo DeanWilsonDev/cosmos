@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Cosmos/Ast.h"
+#include "cosmos/Ast.h"
 
 #include <amanuensis.hpp>
 

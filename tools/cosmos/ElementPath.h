@@ -1,7 +1,7 @@
 #pragma once
 
-#include "Cosmos/Ast.h"
-#include "Cosmos/Resolver.h"
+#include "cosmos/Ast.h"
+#include "cosmos/Resolver.h"
 
 #include <map>
 #include <memory>

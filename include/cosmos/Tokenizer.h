@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Cosmos/Token.h"
+#include "cosmos/Token.h"
 
 #include <cstddef>
 #include <string>
